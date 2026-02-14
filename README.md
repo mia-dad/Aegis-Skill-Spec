@@ -1007,7 +1007,8 @@ input_schema:
 ```markdown
 # skill: chat
 
-**description**: 通用对话 Skill，用于回答用户的各类问题。
+## description
+通用对话 Skill，用于回答用户的各类问题。
 
 ## capabilityTags
   - 回答问题
@@ -1048,7 +1049,8 @@ content:
 ```markdown
 # skill: simple_search
 
-**description**: 简单搜索 Skill，用于搜索相关信息。
+## description
+简单搜索 Skill，用于搜索相关信息。
 
 ## capabilityTags
   - 搜索
@@ -1097,7 +1099,8 @@ output_schema:
 ```markdown
 # skill: order_confirmation
 
-**description**: 订单确认示例 - 演示 await step 的人机交互功能
+## description
+订单确认示例 - 演示 await step 的人机交互功能
 
 ## capabilityTags
   - 商业订单
@@ -1294,7 +1297,8 @@ output_schema:
 ```markdown
 # skill: sales_report
 
-**description**: 生成销售数据报表
+## description
+生成销售数据报表
 
 ## input_schema
 
@@ -1368,7 +1372,8 @@ output_schema:
 ```markdown
 # skill: sales_trend_analysis
 
-**description**: 分析销售趋势并生成图表
+## description
+分析销售趋势并生成图表
 
 ## capabilityTags
   - 销售管理
@@ -1444,7 +1449,8 @@ options:
 ```markdown
 # skill: export_report
 
-**description**: 导出报表为文件
+## description
+导出报表为文件
 
 ## capabilityTags
   - ppt
