@@ -17,10 +17,10 @@ Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可
 
 <技能描述>
 
-## intent
+## capabilityTags
 
-- <意图关键词1>
-- <意图关键词2>
+- <能力关键词1>
+- <能力关键词2>
 
 ## input_schema
 
@@ -50,7 +50,7 @@ Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可
 | `# skill: <id>` | 是 | 技能唯一标识符，作为一级标题 |
 | `**version**: <版本号>` | 否 | 技能版本号，遵循语义化版本（如 `1.0.0`）。其取值对应本规范文档开篇的版本号。`skillId + version` 构成全局唯一标识，同一 skillId 可存在多个版本。未提供时默认为 `1.0.0` |
 | `## description` | 否 | 技能描述文本 |
-| `## intent` | 否 | 意图关键词列表，用于技能路由和匹配 |
+| `## capabilityTags` | 否 | 能力关键词列表，用于技能路由和匹配 |
 | `## input_schema` | 否 | 输入参数结构定义（YAML 格式） |
 | `## output_schema` | 是 | 输出参数结构定义（YAML 格式，平铺字段定义） |
 | `## steps` | 是 | 执行步骤列表（至少一个） |
@@ -1009,6 +1009,10 @@ input_schema:
 
 **description**: 通用对话 Skill，用于回答用户的各类问题。
 
+## capabilityTags
+  - 回答问题
+  - 聊天
+
 ## input_schema
 
 ```yaml
@@ -1045,6 +1049,14 @@ content:
 # skill: simple_search
 
 **description**: 简单搜索 Skill，用于搜索相关信息。
+
+## capabilityTags
+  - 搜索
+  - 实时信息
+  - 新闻
+  - 专业词查询
+  - 生僻词意查找
+  
 
 ## input_schema
 
@@ -1086,6 +1098,9 @@ output_schema:
 # skill: order_confirmation
 
 **description**: 订单确认示例 - 演示 await step 的人机交互功能
+
+## capabilityTags
+  - 商业订单
 
 ## input_schema
 
@@ -1212,12 +1227,11 @@ input_schema:
 
 对企业财务状况进行分析，并生成结构化分析报告。
 
-## intent
-
-- 财务分析
-- financial_analysis
-- 财报分析
-- 公司分析
+## capabilityTags
+  - 财务分析
+  - financial_analysis
+  - 财报分析
+  - 公司分析
 
 ## input_schema
 
@@ -1356,6 +1370,11 @@ output_schema:
 
 **description**: 分析销售趋势并生成图表
 
+## capabilityTags
+  - 销售管理
+  - 数据分析
+  - 销售
+
 ## input_schema
 
 ```yaml
@@ -1426,6 +1445,11 @@ options:
 # skill: export_report
 
 **description**: 导出报表为文件
+
+## capabilityTags
+  - ppt
+  - 文件生成
+  - 数据导出
 
 ## input_schema
 
@@ -1568,3 +1592,4 @@ output_schema:
 | 1.0.0 | 2026-02-11 | 模板新增数组索引访问（`{{arr[n].field}}`、`{{arr[#var].field}}`）和循环渲染（`{{#for arr}}...{{/for}}`） |
 | 1.0.0 | 2026-02-11 | input_schema 和上下文新增 `object` 类型（`Map<String, Object>`）；循环渲染新增 `{{_}}` 引用当前元素；array 上下文存储改为 `List`；更新 database.query 示例 |
 | 1.0.0 | 2026-02-12 | 新增 version 字段：技能文件支持声明版本号，`skillId + version` 构成全局唯一标识；API 层支持按版本查询和执行 |
+| 1.0.0 | 2026-02-14 | 将意图关键词intent改为能力关键词capabilityTags |
