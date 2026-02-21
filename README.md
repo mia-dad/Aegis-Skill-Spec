@@ -1,14 +1,22 @@
 # Aegis Skill DSL 规范说明文档
 
-> **规范版本：1.0.0**
+> **规范版本：1.1.0**
 
 ## 1. 概述
 
-Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可执行的 AI 技能。每个 Skill 由输入定义、执行步骤和输出定义组成。
+Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可执行的 AI 技能。
+每个 Skill 由：
+ - 输入定义（input_schema）
+ - 输出定义（output_schema）
+ - UI 展示语义（ui）
+ - 执行步骤（steps）
+组成。
+Aegis 采用：
+聊天瀑布流作为唯一页面容器，Skill 负责“数据结构”，UI 负责“语义展示”，前端不做智能猜测渲染
 
 ### 1.1 技能文件骨架
 
-```markdown
+~~~markdown
 # skill: <skill_id>
 
 **version**: <版本号>
@@ -27,12 +35,18 @@ Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可
 ```yaml
 <输入参数定义>
 ```
-
 ## output_schema
 
 ```yaml
 <输出参数定义>
 ```
+
+
+## ui
+```yaml
+<UI展示语义定义>
+```
+
 
 ## steps
 
@@ -41,7 +55,7 @@ Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可
 **type**: <step_type>
 
 <step_configuration>
-```
+~~~
 
 ### 1.2 技能文件顶层章节
 
@@ -53,6 +67,7 @@ Aegis Skill DSL 是一种基于 Markdown 的领域特定语言，用于定义可
 | `## capabilityTags` | 否 | 能力关键词列表，用于技能路由和匹配 |
 | `## input_schema` | 否 | 输入参数结构定义（YAML 格式） |
 | `## output_schema` | 是 | 输出参数结构定义（YAML 格式，平铺字段定义） |
+| `## ui` | 是 | UI展示语义定义|  
 | `## steps` | 是 | 执行步骤列表（至少一个） |
 
 ### 1.3 version 字段
@@ -360,65 +375,20 @@ summary:
 
 ### 3.4 输出定义示例
 
-**示例 1：图表数据输出**
-
 ```yaml
-chart_type:
-  type: string
-  description: 图表类型（line, bar, pie 等）
 title:
   type: string
-  description: 图表标题
+  description: 报表标题
+
 data:
-  type: object
-  description: 图表数据
-options:
-  type: object
-  description: 图表配置选项
-```
-
-**示例 2：文件下载输出**
-
-```yaml
-file_url:
-  type: string
-  description: 文件下载链接
-file_name:
-  type: string
-  description: 文件名
-file_size:
-  type: number
-  description: 文件大小（字节）
-mime_type:
-  type: string
-  description: MIME 类型
-```
-
-**示例 3：图文混排输出**
-
-```yaml
-title:
-  type: string
-  description: 文档标题
-content:
   type: array
-  description: 文档内容块（文本、图片、表格等）
+  description: 数据列表
   items:
-    block:
+    name:
       type: string
-      description: 块类型（paragraph, chart, image）
-    text:
-      type: string
-      description: 文本内容（paragraph 类型）
-    chart:
-      type: object
-      description: 图表数据（chart 类型）
-metadata:
-  type: object
-  description: 文档元数据
+    value:
+      type: number
 ```
-
----
 
 ## 4. 执行步骤 (steps)
 
@@ -636,16 +606,354 @@ when:
 
 ---
 
-## 5. Step 类型详解
 
-### 5.1 Tool 步骤
+## 5. 新增：UI 展示语义章节（1.1.0 核心）
+
+### 5.1 核心设计原则
+
+Aegis 页面容器固定为聊天瀑布流
+
+Skill 不控制布局
+
+Skill 只声明“如何展示数据”
+
+Skill 以 业务数据为中心
+
+UI 组件只是对数据的语义映射
+
+前端不做智能猜测渲染
+
+### 5.2 display 类型
+display: < markdown | list | table | bar_chart | line_chart | area_chart | pie_chart | file | mixed >
+
+类型  说明
+markdown  Markdown 文本展示
+list  列表展示（集合型组件）
+table 表格展示（集合型组件）
+bar_chart 图表展示（语义角色型组件）
+line_chart 图表展示（语义角色型组件）
+area_chart 图表展示（语义角色型组件）
+pie_chart 图表展示（语义角色型组件）
+file  文件下载展示（集合型组件）
+mixed 多块组合展示
+### 5.3 UI 结构模型
+
+UI 定义统一为：
+
+display: <type>
+
+mapping:
+  <数据映射规则>
+
+config:
+  <组件配置>
+
+### 5.4 关键建模原则（重要）
+
+UI 组件分为两类：
+
+类型  建模方式
+单对象组件 字段映射
+集合型组件 集合驱动映射
+### 5.5 单对象组件
+
+适用：markdown
+
+特点：
+
+output_schema 中是 object 或单字段
+
+直接字段映射
+
+示例：
+```yaml
+display: markdown
+mapping:
+  title: summary_title
+  content: summary_text
+```
+
+
+### 5.6 集合型组件（统一规则）
+
+适用：
+
+list
+
+table
+
+file
+
+核心规则：
+
+集合型组件必须先声明集合来源，再声明元素映射。
+
+统一语法：
+```yaml
+display: <type>
+
+mapping:
+  source: <output_schema中的array字段>
+  item_mapping:
+    <ui字段>: <array元素中的字段>
+```
+
+### 5.7 语义角色型组件
+适用：
+bar_chart 
+line_chart 
+area_chart 
+pie_chart
+
+需要：
+
+source + 角色字段
+
+### 5.8分述 
+#### 5.8.1 display: list
+List 组件模型
+{
+  "items": [
+    {
+      "title": "string",
+      "content": "string",
+      "url": "string?"
+    }
+  ]
+}
+
+规范
+
+mapping.source 必须为 array
+
+item_mapping 必须存在
+
+title / content 必填
+
+url 可选
+
+示例
+```yaml
+display: list
+
+mapping:
+  source: articles
+  item_mapping:
+    title: title
+    content: summary
+    url: link
+```
+#### 5.8.2 display: file
+File 组件模型
+{
+  "files": [
+    {
+      "name": "string",
+      "url": "string",
+      "size": "number?"
+    }
+  ]
+}
+
+示例
+```yaml
+display: file
+
+mapping:
+  source: files
+  item_mapping:
+    name: file_name
+    url: file_url
+    size: file_size
+```
+#### 5.8.3 display: table
+Table 模型
+{
+  "headers": ["string"],
+  "rows": [["any"]]
+}
+```yaml
+display: table
+mapping:
+  source: rows
+  item_mapping:
+    地区: region
+    销售额: sales
+    达成率: rate
+```
+说明：
+
+headers 自动来自 item_mapping key
+
+rows 自动按顺序生成
+
+#### 5.8.4 display: bar_chart/line_chart/area_chart
+Chart 模型
+{
+  "title": "string",
+  "labels": ["string"],
+  "datasets": [
+    {
+      "label": "string",
+      "values": ["number"]
+    }
+  ]
+}
+
+推荐结构化模式
+```yaml
+display: bar_chart/line_chart/area_chart
+
+mapping:
+  source: monthly_data
+  x: month
+  y: sales
+  series: region
+```
+
+说明：
+
+source 必须为 array
+
+x 指定横轴字段
+y 指定数值字段
+series 可选（分组）
+
+#### 5.8.5 display: pie_chart
+Chart 模型
+{
+  "title": "string",
+  "labels": ["string"],
+  "datasets": [
+    {
+      "label": "string",
+      "values": ["number"]
+    }
+  ]
+}
+
+推荐结构化模式
+```yaml
+display: pie_chart
+
+mapping:
+  source: monthly_data
+  category: month
+  value: sales
+```
+说明：
+source 必须为 array
+category：扇区名称
+value：数值
+
+#### 5.8.6 display: mixed
+
+mixed 是纯布局 DSL，允许组合多个组件形成声明式 UI 树结构。
+
+**UI 树结构示例：**
+```
+mixed
+ ├── markdown
+ ├── markdown
+ ├── table
+ └── bar_chart
+```
+
+**语法：**
+```yaml
+display: mixed
+
+layout:
+  - type: <markdown|list|table|bar_chart|line_chart|area_chart|pie_chart|file>
+    mapping:
+      ...
+    config:
+      ...
+  - type: ...
+    mapping:
+      ...
+```
+
+**完整示例：**
+```yaml
+display: mixed
+
+layout:
+  - type: markdown
+    mapping:
+      content: analysis
+
+  - type: table
+    mapping:
+      source: financial_table
+      item_mapping:
+        region: region
+        amount: amount
+
+  - type: bar_chart
+    mapping:
+      source: trend_data
+      x: date
+      y: amount
+```
+
+**说明：**
+
+- `layout` 是一个数组，按顺序声明要展示的组件
+- 每个 layout 元素包含 `type`（组件类型）、`mapping`（数据映射）、`config`（可选配置）
+- 各子组件的 mapping 规则与独立使用时一致（markdown 用字段映射，集合型用 source + item_mapping，图表用 source + 角色字段）
+
+**限制：**
+
+- mixed 不允许嵌套 mixed（layout 中的 type 不能是 mixed）
+
+### 5.9 mapping 与 config 的角色
+mapping
+
+职责：
+
+将业务数据映射为组件数据模型
+
+config
+
+职责：
+
+调整组件行为或样式
+
+例如：
+```yaml
+config:
+  chart_type: bar
+  sortable: true
+  page_size: 10
+```
+
+### 5.10 设计哲学总结
+
+Aegis UI 语义的核心原则：
+
+Skill 输出业务数据
+
+UI 组件声明数据语义
+
+集合型组件使用集合驱动建模
+
+单对象组件使用字段驱动建模
+
+mapping 负责“结构转换”
+
+config 负责“组件行为”
+
+
+## 6. Step 类型详解
+
+### 6.1 Tool 步骤
 
 调用已注册的外部工具（HTTP API、数据库、Java Service 等）。工具通过 `ToolOutputContext.put(key, value)` 直接将输出写入执行上下文，后续步骤可通过 key 名直接引用。
 
 #### 配置格式
 
-```markdown
-### step: <step_name>
+##### step: <step_name>
 
 **type**: tool
 **tool**: <tool_name>
@@ -684,7 +992,7 @@ output_schema:
 
 `input` 下的内容传递给工具的 `execute()` 方法，`output_schema` 不传递。
 
-#### 参数类型系统
+##### 参数类型系统
 
 **重要原则**：工具从执行上下文获取的输入始终是 **Java 对象**，不是 JSON 字符串。
 
@@ -752,7 +1060,7 @@ void execute(Map<String, Object> input, ToolOutputContext output) throws ToolExe
 
 工具通过 `output.put(key, value)` 将输出变量写入执行上下文。后续步骤直接通过 `{{key}}` 引用这些变量。
 
-#### 变量类型约束
+##### 变量类型约束
 
 技能上下文中的变量类型：
 
@@ -765,11 +1073,11 @@ void execute(Map<String, Object> input, ToolOutputContext output) throws ToolExe
 | object | `Map<String, Object>` | 键值对 |
 
 
-#### 变量命名冲突处理
+##### 变量命名冲突处理
 
 当同一工具被多次调用时（例如两次 `json_select`），后一次的输出会覆盖前一次的同名变量。解决方式是在两次调用之间插入 `template` 步骤，将需要保留的变量复制到新名称：
 
-```markdown
+~~~markdown
 ### step: select_region_data
 
 **type**: tool
@@ -805,7 +1113,8 @@ output_schema:
   result:
     type: string
 ```
-```
+~~~
+
 
 上例中，`save_region_data` 步骤在第二次 `json_select` 覆盖 `result` 之前，将其保存为 `region_data_json`。
 
@@ -827,13 +1136,13 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 }
 ```
 
-### 5.2 Prompt 步骤
+### 6.2 Prompt 步骤
 
 将 Prompt 模板发送给 LLM，获取生成结果。
 
 #### 配置格式
 
-```markdown
+~~~markdown
 ### step: <step_name>
 
 **type**: prompt
@@ -842,6 +1151,7 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 ```prompt
 <prompt_template>
 ```
+~~~
 
 | 字段 | 必需 | 说明 |
 |------|------|------|
@@ -851,7 +1161,7 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 
 #### 示例
 
-```markdown
+~~~markdown
 ### step: analyze_data
 
 **type**: prompt
@@ -868,9 +1178,9 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 2. 风险提示
 3. 建议措施
 ```
-```
+~~~
 
-### 5.3 Template 步骤
+### 6.3 Template 步骤
 
 纯文本模板渲染，只做变量替换，**不调用 LLM 也不调用 Tool**。渲染结果以 varName 为键直接存入上下文。
 
@@ -881,7 +1191,7 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 
 #### 配置格式
 
-````markdown
+~~~markdown
 ### step: <step_name>
 
 **type**: template
@@ -890,7 +1200,7 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 ```template
 模板内容，支持 {{variable}} 语法
 ```
-````
+~~~
 
 | 字段 | 必需 | 说明 |
 |------|------|------|
@@ -909,7 +1219,7 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 
 #### 示例
 
-```markdown
+~~~markdown
 ### step: compose_message
 
 **type**: template
@@ -923,15 +1233,15 @@ public void execute(Map<String, Object> input, ToolOutputContext output) throws 
 ===================
 感谢您的购买！
 ```
-```
+~~~
 
-### 5.4 Await 步骤
+### 6.4 Await 步骤
 
 暂停 Skill 执行，等待用户提供额外输入后继续执行。用于人机交互控制流场景。
 
 #### 配置格式
 
-```markdown
+~~~markdown
 ### step: <step_name>
 
 **type**: await
@@ -945,6 +1255,7 @@ input_schema:
     required: <true|false>
     description: <描述>
 ```
+~~~
 
 | 字段 | 必需 | 说明 |
 |------|------|------|
@@ -956,7 +1267,7 @@ input_schema:
 
 #### 示例
 
-```markdown
+~~~markdown
 ### step: user_confirmation
 
 **type**: await
@@ -976,7 +1287,6 @@ input_schema:
     required: false
     description: 备注信息（可选）
 ```
-
 ### step: process_order
 
 **type**: template
@@ -996,16 +1306,19 @@ input_schema:
 ```template
 订单 {{order_id}} 已取消。
 ```
-```
+~~~
+
 
 ---
 
-## 6. 完整示例
+## 7. 完整示例
 
-### 6.1 简单对话 Skill
+### 7.1 简单对话 Skill
 
-```markdown
+~~~markdown
 # skill: chat
+
+**version**: 1.1.0
 
 ## description
 通用对话 Skill，用于回答用户的各类问题。
@@ -1028,6 +1341,14 @@ content:
   description: AI 助手回答内容
 ```
 
+## ui
+```yaml
+display: markdown
+mapping:
+  content: content
+```
+
+
 ## steps
 
 ### step: answer
@@ -1042,12 +1363,14 @@ content:
 
 请给出简洁、准确的回答。
 ```
-```
+~~~
 
-### 6.2 数据搜索 Skill
+### 7.2 数据搜索 Skill
 
-```markdown
+~~~markdown
 # skill: simple_search
+
+**version**: 1.1.0
 
 ## description
 简单搜索 Skill，用于搜索相关信息。
@@ -1058,7 +1381,7 @@ content:
   - 新闻
   - 专业词查询
   - 生僻词意查找
-  
+
 
 ## input_schema
 
@@ -1072,10 +1395,32 @@ query:
 ## output_schema
 
 ```yaml
-result:
-  type: string
-  description: 搜索结果
+results:
+  type: array
+  description: 搜索结果列表
+  items:
+    title:
+      type: string
+      description: 标题
+    snippet:
+      type: string
+      description: 摘要
+    link:
+      type: string
+      description: 链接
 ```
+
+## ui
+```yaml
+display: list
+mapping:
+  source: results
+  item_mapping:
+    title: title
+    content: snippet
+    url: link
+```
+
 
 ## steps
 
@@ -1088,16 +1433,28 @@ result:
 input:
   q: "{{query}}"
 output_schema:
-  result:
-    type: string
-    description: 搜索结果
+  results:
+    type: array
+    description: 搜索结果列表
+    items:
+      title:
+        type: string
+        description: 标题
+      snippet:
+        type: string
+        description: 摘要
+      link:
+        type: string
+        description: 链接
 ```
-```
+~~~
 
-### 6.3 订单确认 Skill（人机交互）
+### 7.3 订单确认 Skill（人机交互）
 
-```markdown
+~~~markdown
 # skill: order_confirmation
+
+**version**: 1.1.0
 
 ## description
 订单确认示例 - 演示 await step 的人机交互功能
@@ -1138,6 +1495,13 @@ title:
 content:
   type: string
   description: 订单处理结果
+```
+
+## ui
+```yaml
+display: markdown
+mapping:
+  content: content
 ```
 
 ## steps
@@ -1219,42 +1583,86 @@ input_schema:
   "user_notes": "{{notes}}"
 }
 ```
-```
+~~~
 
-### 6.4 财务分析 Skill（多步骤组合）
+### 7.4 财务分析 Skill（多步骤组合）
 
-```markdown
+~~~markdown
 # skill: financial_analysis
 
-## description
+**version**: 1.1.0
 
+## description
 对企业财务状况进行分析，并生成结构化分析报告。
 
 ## capabilityTags
   - 财务分析
   - financial_analysis
-  - 财报分析
-  - 公司分析
 
 ## input_schema
-
 ```yaml
 company:
   type: string
   required: true
-  description: 公司名称
 period:
   type: string
   required: true
-  description: 分析期间
 ```
 
 ## output_schema
-
 ```yaml
-report:
+title:
   type: string
-  description: 财务分析报告
+  description: 报告标题
+
+analysis:
+  type: string
+  description: 分析内容
+
+financial_table:
+  type: array
+  description: 财务数据表格
+  items:
+    region:
+      type: string
+      description: 区域
+    amount:
+      type: number
+      description: 金额
+
+trend_data:
+  type: array
+  description: 趋势数据
+  items:
+    date:
+      type: string
+      description: 日期
+    amount:
+      type: number
+      description: 金额
+```
+
+## ui
+```yaml
+display: mixed
+
+layout:
+  - type: markdown
+    mapping:
+      content: analysis
+
+  - type: table
+    mapping:
+      source: financial_table
+      item_mapping:
+        区域: region
+        金额: amount
+
+  - type: bar_chart
+    mapping:
+      source: trend_data
+      x: date
+      y: amount
 ```
 
 ## steps
@@ -1271,34 +1679,49 @@ input:
 output_schema:
   data:
     type: string
-    description: 金融数据（JSON 字符串）
+    description: 财务数据
 ```
 
 ### step: analyze_data
 
 **type**: prompt
-**varName**: report
+**varName**: analysis
 
 ```prompt
-你是一位专业的财务分析师。
-
-请分析 {{company}} 在 {{period}} 期间的财务数据：
+你是一位专业财务分析师。
+请分析 {{company}} 在 {{period}} 的财务数据：
 {{data}}
-
-请给出专业分析，包括：
-1. 关键财务指标解读
+输出：
+1. 分析内容
 2. 风险提示
-3. 建议措施
-```
+3. 建议
 ```
 
-### 6.5 销售报表 Skill
+### step: prepare_output
 
-```markdown
+**type**: template
+**varName**: title
+
+```template
+{{company}} {{period}} 财务分析报告
+```
+~~~
+
+
+### 7.5 销售报表 Skill
+
+~~~markdown
 # skill: sales_report
+
+**version**: 1.1.0
 
 ## description
 生成销售数据报表
+
+## capabilityTags
+  - 销售报表
+  - 数据报表
+  - 销售分析
 
 ## input_schema
 
@@ -1322,9 +1745,33 @@ headers:
 data:
   type: array
   description: 表格数据
+  items:
+    region:
+      type: string
+      description: 区域
+    product:
+      type: string
+      description: 商品名称
+    amount:
+      type: number
+      description: 销售量
 summary:
   type: object
   description: 汇总信息
+  total:
+    type: number
+    description: 总计
+```
+
+## ui
+```yaml
+display: table
+mapping:
+  source: data
+  item_mapping:
+    区域: region
+    商品: product
+    销售量: amount
 ```
 
 ## steps
@@ -1338,7 +1785,7 @@ summary:
 input:
   query: "SELECT region, product, amount FROM sales WHERE region = '{{region}}'"
 output_schema:
-  result:
+  data:
     type: array
     description: 查询结果
     items:
@@ -1361,16 +1808,18 @@ output_schema:
 ```template
 {{region}} 地区 {{period}} 销售报表：
 
-{{#for result}}
+{{#for data}}
 区域：{{region}}，商品：{{product}}，销售量：{{amount}}
 {{/for}}
 ```
-```
+~~~
 
-### 6.6 销售趋势分析 Skill
+### 7.6 销售趋势分析 Skill
 
-```markdown
+~~~markdown
 # skill: sales_trend_analysis
+
+**version**: 1.1.0
 
 ## description
 分析销售趋势并生成图表
@@ -1415,15 +1864,28 @@ chart_type:
 title:
   type: string
   description: 图表标题
-x_axis:
+trend_data:
   type: array
-  description: X轴数据
-y_axis:
-  type: array
-  description: Y轴数据
+  description: 趋势数据
+  items:
+    time_point:
+      type: string
+      description: 时间点
+    sales:
+      type: number
+      description: 销售额
 options:
   type: object
   description: 图表配置选项
+```
+
+## ui
+```yaml
+display: line_chart
+mapping:
+  source: trend_data
+  x: time_point
+  y: sales
 ```
 
 ## steps
@@ -1442,12 +1904,14 @@ options:
 3. 图表标题
 4. 图表配置建议
 ```
-```
+~~~
 
-### 6.7 文件导出 Skill
+### 7.7 文件导出 Skill
 
-```markdown
+~~~markdown
 # skill: export_report
+
+**version**: 1.1.0
 
 ## description
 导出报表为文件
@@ -1477,18 +1941,30 @@ format:
 ## output_schema
 
 ```yaml
-file_url:
-  type: string
-  description: 文件下载链接
-file_name:
-  type: string
-  description: 文件名
-file_size:
-  type: number
-  description: 文件大小（字节）
-mime_type:
-  type: string
-  description: MIME类型
+files:
+  type: array
+  description: 生成的文件列表
+  items:
+    file_url:
+      type: string
+      description: 文件下载链接
+    file_name:
+      type: string
+      description: 文件名
+    file_size:
+      type: number
+      description: 文件大小（字节）
+```
+
+## ui
+```yaml
+display: file
+mapping:
+  source: files
+  item_mapping:
+    name: file_name
+    url: file_url
+    size: file_size
 ```
 
 ## steps
@@ -1503,18 +1979,19 @@ input:
   report_id: "{{report_id}}"
   format: "{{format}}"
 output_schema:
-  file_url:
-    type: string
-    description: 文件下载链接
-  file_name:
-    type: string
-    description: 文件名
-  file_size:
-    type: number
-    description: 文件大小（字节）
-  mime_type:
-    type: string
-    description: MIME 类型
+  files:
+    type: array
+    description: 生成的文件列表
+    items:
+      file_url:
+        type: string
+        description: 文件下载链接
+      file_name:
+        type: string
+        description: 文件名
+      file_size:
+        type: number
+        description: 文件大小（字节）
 ```
 
 ### step: format_response
@@ -1524,24 +2001,27 @@ output_schema:
 
 ```template
 文件已生成：
+{{#for files}}
 - 文件名：{{file_name}}
 - 下载链接：{{file_url}}
 - 大小：{{file_size}} 字节
+{{/for}}
 ```
-```
+~~~
 
 ---
 
-## 7. 最佳实践
+## 8. 最佳实践
 
-### 7.1 命名规范
+### 8.1 命名规范
 
 - **Step 名称**：使用动词或动词短语，如 `calculate_total`、`prepare_summary`
+- **相关输入输出变量名称**：使用与业务含义相匹配的名词或动名词以及短语，如 `file`、`summary`、`result`、`report`
 - **输入参数**：使用下划线命名法，如 `order_id`、`unit_price`
 - **工具名称**：使用点号分隔命名空间，如 `database.query`、`search_api`
 - **varName**：与 output_schema 中的字段名对齐，如输出定义了 `report` 字段，则 varName 也用 `report`
 
-### 7.2 设计原则
+### 8.2 设计原则
 
 1. **单一职责**：每个 Skill 应专注于一个任务
 2. **步骤复用**：通过步骤组合实现复杂逻辑
@@ -1549,13 +2029,13 @@ output_schema:
 4. **错误处理**：在条件分支中处理各种情况
 5. **链式调用**：上一个技能的 output_schema 可能是下一个技能的 input_schema，保持结构一致
 
-### 7.3 性能优化
+### 8.3 性能优化
 
 1. **减少 LLM 调用**：对于固定格式输出和简单计算，使用 `template` 类型代替 `prompt`
 2. **并行执行**：将独立步骤放在不同分支
 3. **缓存结果**：在步骤间传递输出而非重复计算
 
-### 7.4 调试技巧
+### 8.4 调试技巧
 
 1. **使用 log 工具**：输出中间变量值进行调试
 2. **条件日志**：使用 `when` 条件输出调试信息
@@ -1563,12 +2043,12 @@ output_schema:
 
 ---
 
-## 8. 附录
+## 9. 附录
 
-### 8.1 保留关键词
+### 9.1 保留关键词
 
 以下词汇为 DSL 保留关键词，不能用作字段名或变量名：
-
+- 以`_`开头的任意词
 - `type`
 - `tool`
 - `when`
@@ -1581,7 +2061,7 @@ output_schema:
 - `required`
 - `items`
 
-### 8.2 修订历史
+### 9.2 修订历史
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -1599,3 +2079,4 @@ output_schema:
 | 1.0.0 | 2026-02-11 | input_schema 和上下文新增 `object` 类型（`Map<String, Object>`）；循环渲染新增 `{{_}}` 引用当前元素；array 上下文存储改为 `List`；更新 database.query 示例 |
 | 1.0.0 | 2026-02-12 | 新增 version 字段：技能文件支持声明版本号，`skillId + version` 构成全局唯一标识；API 层支持按版本查询和执行 |
 | 1.0.0 | 2026-02-14 | 将意图关键词intent改为能力关键词capabilityTags |
+| 1.1.0 | 2026-02-21 | 新增 UI 展示语义章节（第5章）：引入 `## ui` 作为必需顶层章节；定义 display 类型（markdown/list/table/bar_chart/line_chart/area_chart/pie_chart/file/mixed）；建立组件分类体系（单对象组件、集合型组件、语义角色型组件）；mixed 采用纯布局 DSL 设计，通过 `layout` 数组声明 UI 树结构；规范 mapping 与 config 的职责划分；确立"数据驱动 UI、前端不做智能猜测"的核心原则；更新第7章所有完整示例以符合 1.1.0 规范（添加 version 字段、ui 章节、修正 output_schema 与 ui mapping 的一致性） |
