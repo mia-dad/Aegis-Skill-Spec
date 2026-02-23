@@ -611,17 +611,60 @@ when:
 
 ### 5.1 核心设计原则
 
-Aegis 页面容器固定为聊天瀑布流
+**页面容器**：Aegis 页面容器固定为聊天瀑布流
 
-Skill 不控制布局
+**Skill 职责**：
+- Skill 不控制布局
+- Skill 只声明"如何展示数据"
+- Skill 以业务数据为中心
 
-Skill 只声明“如何展示数据”
+**UI 渲染**：
+- UI 组件只是对数据的语义映射
+- 前端不做智能猜测渲染
 
-Skill 以 业务数据为中心
+**`## ui` 补充原则**：
 
-UI 组件只是对数据的语义映射
+> 针对 `## ui` 章节的设计：**UI 的 `display` 类型应尽可能靠近人类可读性，自然对应输出字段的内容形态，减少对结构性/复杂对象的依赖。**
 
-前端不做智能猜测渲染
+这意味着：
+- 当 `output_schema` 中的字段是人类可读的文本（如 Markdown），`display: markdown` 可以直接映射
+- 当输出是结构化数据（如数组），选择 `display: list` / `display: table` 等集合型组件
+- **避免**：让 `display: markdown` 去渲染一个复杂的 `object` 类型字段，这需要额外的字段提取
+
+**Template Step 输出指导**：
+
+当使用 Template Step 生成内容时，输出格式应与 `## ui` 的 `display` 类型自然对应：
+
+| display 类型 | Template 输出推荐格式 | 说明 |
+|-------------|---------------------|------|
+| `markdown` | 直接生成 Markdown 文本 | 不要生成 YAML/JSON 键值对 |
+| `table` | 输出到 `output_schema` 的 `array` 字段 | 配合 `source` + `item_mapping` |
+| `list` | 输出到 `output_schema` 的 `array` 字段 | 配合 `source` + `item_mapping` |
+
+**反例与正例**：
+
+```yaml
+# ❌ 反例：Template 输出结构化数据，被解析器解析为 object
+# output_schema 定义 sales_output: type: string，但实际输出是键值对格式
+```template
+region: {{region}}
+period: {{period}}
+total_sales: {{total_sales}}
+```
+
+```yaml
+# ✅ 正例：Template 输出 Markdown，直接可读，自然对应 display: markdown
+```template
+## {{region}}区 {{period}} 销售报告
+
+| 指标 | 数值 |
+|------|------|
+| 总销售额 | {{total_sales}} 万元 |
+| 销售目标 | {{target}} 万元 |
+| 达成率 | {{achievement_rate}}% |
+
+**目标状态**: {{#if target_achieved}}✅ 已达成{{else}}⚠️ 未达成{{/if}}
+```
 
 ### 5.2 display 类型
 display: < markdown | list | table | bar_chart | line_chart | area_chart | pie_chart | file | mixed >
@@ -908,17 +951,25 @@ layout:
 - mixed 不允许嵌套 mixed（layout 中的 type 不能是 mixed）
 
 ### 5.9 mapping 与 config 的角色
-mapping
 
-职责：
+#### mapping
 
-将业务数据映射为组件数据模型
+**职责：** 将业务数据映射为组件数据模型
 
-config
+**数据来源：** mapping 中引用的字段名可以指向技能执行过程中所有可用的变量，包括：
 
-职责：
+| 来源 | 说明 | 示例 |
+|------|------|------|
+| `input_schema` | 用户初始输入的字段 | `{{company}}`、`{{period}}` |
+| `await` 步骤 | 用户在中间步骤输入的字段（由 `input_schema` 定义） | `{{confirm}}`、`{{notes}}` |
+| `tool` 步骤 | 工具通过 `output.put(key, value)` 写入的字段 | `{{total_sales}}`、`{{data}}` |
+| `prompt` / `template` 步骤 | 通过 `varName` 写入的字段 | `{{report}}`、`{{title}}` |
 
-调整组件行为或样式
+> **注意**：mapping 的数据来源**不限于** `output_schema` 中定义的字段。`output_schema` 的作用是声明最终输出结构和进行输出验证，而 UI 渲染可以使用执行过程中产生的任意变量。
+
+#### config
+
+**职责：** 调整组件行为或样式
 
 例如：
 ```yaml
@@ -2043,9 +2094,195 @@ output_schema:
 
 ---
 
-## 9. 附录
+## 9. 审计日志
 
-### 9.1 保留关键词
+### 9.1 审计日志的重要性
+
+**审计日志是 Aegis Skill 区别于其他技能系统的核心特性之一**。在企业级应用中，技能执行过程的可追溯性、可审查性至关重要。审计日志确保：
+
+1. **执行可追溯**：每个技能的执行过程都有完整记录，便于问题排查和责任追溯
+2. **业务合规**：满足企业审计要求，提供技能执行的完整证据链
+3. **运维可观测**：实时监控技能执行状态，快速定位异常
+4. **质量保证**：通过日志分析持续优化技能性能和用户体验
+
+**建议每个技能至少输出一条审计日志**，记录关键业务操作或执行结果。
+
+### 9.2 审计日志工具
+
+Aegis 内置 `log` 工具用于输出审计日志，日志会自动关联当前执行上下文的层级归属信息：
+
+| 归属字段 | 说明 |
+|----------|------|
+| `conversationId` | 对话 ID |
+| `userGoal` | 用户目标 |
+| `planId` | 执行计划 ID |
+| `planStepId` | 计划步骤 ID |
+| `skillId` | 技能 ID |
+| `skillVersion` | 技能版本 |
+
+### 9.3 使用语法
+
+在 Step 中调用 `log` 工具：
+
+~~~markdown
+### step: audit_log
+
+**type**: tool
+**tool**: log
+
+```yaml
+input:
+  level: "info"
+  message: "处理完成，共处理 {{count}} 条记录"
+  data:
+    item_count: "{{count}}"
+    region: "{{region}}"
+output_schema:
+  logged:
+    type: boolean
+    description: 是否成功记录日志
+  level:
+    type: string
+    description: 日志级别
+  timestamp:
+    type: string
+    description: 日志时间戳
+```
+~~~
+
+### 9.4 日志级别
+
+| 级别 | 说明 | 适用场景 |
+|------|------|----------|
+| `info` | 信息 | 正常业务操作、执行成功、关键节点记录 |
+| `warn` | 警告 | 可恢复的异常、参数缺失降级、资源接近阈值 |
+| `error` | 错误 | 执行失败、数据异常、业务规则违反 |
+
+### 9.5 输入参数
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `level` | string | 否 | 日志级别（默认 `info`） |
+| `message` | string | 是 | 日志消息，支持模板变量 |
+| `data` | object | 否 | 附加数据，将被序列化为 JSON 存储 |
+
+### 9.6 最佳实践
+
+#### 1. 在关键业务节点记录日志
+
+~~~markdown
+### step: process_order
+
+**type**: tool
+**tool**: database.insert
+
+```yaml
+input:
+  table: orders
+  data:
+    order_id: "{{order_id}}"
+    amount: "{{total_amount}}"
+output_schema:
+  inserted:
+    type: boolean
+```
+
+### step: log_order_created
+
+**type**: tool
+**tool**: log
+
+```yaml
+input:
+  level: "info"
+  message: "订单创建成功"
+  data:
+    order_id: "{{order_id}}"
+    amount: "{{total_amount}}"
+    customer: "{{customer_name}}"
+output_schema:
+  logged:
+    type: boolean
+```
+~~~
+
+#### 2. 记录执行结果
+
+~~~markdown
+### step: log_search_result
+
+**type**: tool
+**tool**: log
+
+```yaml
+input:
+  level: "info"
+  message: "搜索完成，返回 {{result_count}} 条结果"
+  data:
+    query: "{{query}}"
+    result_count: "{{result_count}}"
+    duration_ms: "{{duration}}"
+output_schema:
+  logged:
+    type: boolean
+```
+~~~
+
+#### 3. 使用条件记录异常
+
+~~~markdown
+### step: log_no_results
+
+**type**: tool
+**tool**: log
+**when**: result_count == 0
+
+```yaml
+input:
+  level: "warn"
+  message: "搜索无结果"
+  data:
+    query: "{{query}}"
+output_schema:
+  logged:
+    type: boolean
+```
+~~~
+
+#### 4. 记录敏感操作
+
+~~~markdown
+### step: log_data_export
+
+**type**: tool
+**tool**: log
+
+```yaml
+input:
+  level: "info"
+  message: "数据导出操作"
+  data:
+    export_type: "{{format}}"
+    record_count: "{{total_records}}"
+    requested_by: "{{user_id}}"
+output_schema:
+  logged:
+    type: boolean
+```
+~~~
+
+### 9.7 注意事项
+
+1. **避免记录敏感数据**：不要在日志中记录密码、密钥、身份证号等敏感信息
+2. **消息简洁明了**：日志消息应清晰描述发生了什么，便于快速理解
+3. **合理使用日志级别**：根据事件严重程度选择合适的级别，避免滥用 `error`
+4. **附加数据结构化**：使用 `data` 参数传递结构化数据，便于后续分析和查询
+
+---
+
+## 10. 附录
+
+### 10.1 保留关键词
 
 以下词汇为 DSL 保留关键词，不能用作字段名或变量名：
 - 以`_`开头的任意词
@@ -2061,7 +2298,7 @@ output_schema:
 - `required`
 - `items`
 
-### 9.2 修订历史
+### 10.2 修订历史
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -2080,3 +2317,4 @@ output_schema:
 | 1.0.0 | 2026-02-12 | 新增 version 字段：技能文件支持声明版本号，`skillId + version` 构成全局唯一标识；API 层支持按版本查询和执行 |
 | 1.0.0 | 2026-02-14 | 将意图关键词intent改为能力关键词capabilityTags |
 | 1.1.0 | 2026-02-21 | 新增 UI 展示语义章节（第5章）：引入 `## ui` 作为必需顶层章节；定义 display 类型（markdown/list/table/bar_chart/line_chart/area_chart/pie_chart/file/mixed）；建立组件分类体系（单对象组件、集合型组件、语义角色型组件）；mixed 采用纯布局 DSL 设计，通过 `layout` 数组声明 UI 树结构；规范 mapping 与 config 的职责划分；确立"数据驱动 UI、前端不做智能猜测"的核心原则；更新第7章所有完整示例以符合 1.1.0 规范（添加 version 字段、ui 章节、修正 output_schema 与 ui mapping 的一致性） |
+| 1.1.0 | 2026-02-23 | 新增审计日志章节（第9章）：强调审计日志是 Aegis Skill 核心特性；文档化 `log` 工具的使用方法和最佳实践；建议每个技能至少输出一条审计日志以确保执行可追溯 |
