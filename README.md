@@ -1,6 +1,6 @@
 # Aegis Skill DSL 规范说明文档
 
-> **规范版本：1.1.0**
+> **规范版本：1.2.0**
 
 ## 1. 概述
 
@@ -75,12 +75,12 @@ Aegis 采用：
 `version` 字段声明在一级标题 `# skill: <id>` 之后，格式为：
 
 ```markdown
-**version**: 1.0.0
+**version**: 1.2.0
 ```
 
 **用法说明：**
 
-- **取值来源**：version 的值对应本规范文档（SKILL_DSL_SPECIFICATION.md）开篇的版本号。当规范版本为 `1.0.0` 时，技能文件的 version 即为 `1.0.0`
+- **取值来源**：version 的值对应本规范文档开篇的版本号。当规范版本为 `1.2.0` 时，技能文件的 version 即为 `1.2.0`
 - **唯一标识**：`skillId + version` 构成全局唯一标识。同一个 skillId 可以存在多个版本（如 `1.0.0`、`1.1.0`、`2.0.0`）
 - **语义化版本**：遵循 `major.minor.patch` 格式
   - `major`：不兼容的结构性变更（如输入/输出 schema 变化）
@@ -183,7 +183,41 @@ departments:
           type: string
 ```
 
-> **说明**：`items` 为可选属性。如果省略，系统不会约束数组元素的结构。当使用 `options` 实现多选时，不需要定义 `items`。
+#### 类型完整性规则（1.2.0 强制）
+
+**当字段类型为 `array` 时，必须通过 `items` 完整定义其元素结构，直到最末级节点的类型为基本类型（`string`、`number`、`boolean`）。**
+
+```yaml
+# ❌ 错误：array 没有定义 items
+headers:
+  type: array
+  description: 表头列表
+
+# ✅ 正确：array 定义了 items 的基本类型
+headers:
+  type: array
+  description: 表头列表
+  items:
+    type: string
+
+# ❌ 错误：items 下的 object 没有定义子字段
+records:
+  type: array
+  items:
+    type: object
+    description: 记录对象
+
+# ✅ 正确：items 下的 object 定义了子字段直到基本类型
+records:
+  type: array
+  items:
+    name:
+      type: string
+    value:
+      type: number
+```
+
+> **唯一例外**：当 `array` 配合 `options` 实现多选时，不需要定义 `items`，因为 `options` 已隐含元素为字符串类型。
 
 ### 2.5 对象类型
 
@@ -199,6 +233,46 @@ address:
   street:
     type: string
     description: 街道
+```
+
+#### 类型完整性规则（1.2.0 强制）
+
+**当字段类型为 `object` 时，必须完整定义其子字段结构，直到最末级节点的类型为基本类型（`string`、`number`、`boolean`）。**
+
+```yaml
+# ❌ 错误：object 没有定义子字段
+config:
+  type: object
+  description: 配置项
+
+# ✅ 正确：object 定义了子字段直到基本类型
+config:
+  type: object
+  description: 配置项
+  key:
+    type: string
+    description: 配置键
+  value:
+    type: string
+    description: 配置值
+
+# ❌ 错误：嵌套的 object 没有定义子字段
+user:
+  type: object
+  profile:
+    type: object
+    description: 用户资料
+
+# ✅ 正确：嵌套的 object 也定义了子字段
+user:
+  type: object
+  profile:
+    type: object
+    description: 用户资料
+    name:
+      type: string
+    age:
+      type: number
 ```
 
 ### 2.6 单选和多选（options）
@@ -306,6 +380,8 @@ tags:
 
 **注意**：`output_schema` 是**必需字段**。每个 Skill 必须明确定义结构化的输出格式，以确保系统进行输出校验，并为调用方提供完整的元数据。
 
+**类型完整性规则（1.2.0 强制）**：当字段类型为 `array` 或 `object` 时，必须完整定义其子级结构，直到最末级节点的类型为基本类型（`string`、`number`、`boolean`）。此规则与 `input_schema` 一致，确保技能输出可被下游技能作为输入正确解析。
+
 ### 3.1 基本语法
 
 ```yaml
@@ -327,6 +403,8 @@ tags:
 headers:
   type: array
   description: 表头列表
+  items:
+    type: string
 ```
 
 #### 结构化数组
@@ -370,8 +448,9 @@ summary:
 
 1. 系统根据 `output_schema` 定义进行输出校验
 2. `required: true`（默认）的字段必须出现在输出中
-3. `array` 类型使用 `items` 描述元素结构，`object` 类型平铺子字段
+3. `array` 类型**必须**使用 `items` 描述元素结构，`object` 类型**必须**平铺子字段，直到最末级为基本类型
 4. 上一个技能的输出可能是下一个技能的输入，因此 input 和 output 的结构化规则保持一致
+5. **类型完整性校验**：`array` 或 `object` 类型字段必须定义完整的子级结构，否则技能文件无法通过校验
 
 ### 3.4 输出定义示例
 
@@ -386,8 +465,10 @@ data:
   items:
     name:
       type: string
+      description: 名称
     value:
       type: number
+      description: 数值
 ```
 
 ## 4. 执行步骤 (steps)
@@ -437,49 +518,42 @@ data:
 
 特性：
 - **直接访问**：通过 `{{varName}}` 访问输出，无需 `.value` 后缀
-- **与 output_schema 配合**：varName 与 output_schema 中定义的字段名对齐，使 `buildOutputFromContext` 能正确匹配
+- **与 output_schema 配合**：varName 应与 output_schema 中定义的字段名对齐，确保最终输出正确
 - **命名规则**：必须符合 `^[a-z][a-z0-9_]*$` 模式，且不能与已有 stepName、其他 varName 或输入字段名冲突
 
-#### when 条件执行
+#### when 条件执行（步骤级）
 
-使用 `**when**` 属性定义条件，只有条件为 true 时才执行步骤。
+使用 `when` 属性定义步骤执行条件，只有条件为 true 时才执行该步骤。
 
-**方式一：在 markdown 段落中定义（适用于简单表达式）**
+**语法：**
 
-```markdown
-**when**: confirm == true
-```
-
-**方式二：在 YAML 配置块中定义（适用于包含模板变量的表达式）**
+在 Step 的 YAML 配置块中定义：
 
 ```yaml
 when:
   expr: "{{region}} == null"
 ```
 
-**⚠️ 注意**：当 `when` 条件包含模板变量（如 `{{var}}`）时，必须写在 YAML 配置块中并用**双引号包裹**表达式，因为 YAML 会将 `{{` 解释为流集合语法。
+
+
+**表达式语法：**
+
+- 变量引用使用 `{{variable}}` 格式
+- 整个表达式必须用**双引号**包裹（YAML 语法要求）
+- 字符串字面量使用转义双引号 `\"`
 
 **支持的操作符：**
 
-| 操作符 | 说明 | 表达式示例 | YAML 中写法 |
-|--------|------|------------|------------|
-| `==` | 等于 | `{{var}} == "value"` | `"{{var}} == \"value\""` |
-| `!=` | 不等于 | `{{var}} != "value"` | `"{{var}} != \"value\""` |
-| `&&` | 逻辑与 | `{{a}} == true && {{b}} == false` | `"{{a}} == true && {{b}} == false"` |
-| `\|\|` | 逻辑或 | `{{a}} == null \|\| {{b}} != ""` | `"{{a}} == null \|\| {{b}} != \"\""` |
-| `>` | 大于 | `{{count}} > 10` | `"{{count}} > 10"` |
-| `<` | 小于 | `{{count}} < 10` | `"{{count}} < 10"` |
-| `>=` | 大于等于 | `{{count}} >= 10` | `"{{count}} >= 10"` |
-| `<=` | 小于等于 | `{{count}} <= 10` | `"{{count}} <= 10"` |
-
-**两种方式的区别：**
-
-| 特性 | markdown 段落方式 | YAML 配置块方式 |
-|------|------------------|----------------|
-| 写法位置 | `**when**: <expression>` | YAML 块内 `when:\n  expr: "<expression>"` |
-| 适用场景 | 简单条件，不包含 `{{` | 包含模板变量 `{{var}}` 的复杂条件 |
-| 引号要求 | 不需要引号 | **必须用双引号包裹表达式** |
-| 示例 | `**when**: count > 10` | `when:\n  expr: "{{count}} > 10"` |
+| 操作符 | 说明 | 示例 |
+|--------|------|------|
+| `==` | 等于 | `"{{status}} == \"active\""` |
+| `!=` | 不等于 | `"{{status}} != \"pending\""` |
+| `>` | 大于 | `"{{count}} > 10"` |
+| `<` | 小于 | `"{{count}} < 10"` |
+| `>=` | 大于等于 | `"{{count}} >= 10"` |
+| `<=` | 小于等于 | `"{{count}} <= 10"` |
+| `&&` | 逻辑与 | `"{{a}} == true && {{b}} == false"` |
+| `\|\|` | 逻辑或 | `"{{a}} == null \|\| {{b}} != \"\""` |
 
 ### 4.3 变量与模板语法
 
@@ -564,6 +638,41 @@ when:
 | `{{arr[#var]}}` | 变量索引，`var` 为上下文中的数字变量 |
 | `{{arr[#var].field}}` | 变量索引 + 字段访问 |
 
+**数组字段投影（1.2.0 新增）：**
+
+使用 `[*]` 语法从结构化数组中提取单一字段，生成一个简单数组：
+
+```prompt
+# 假设 result = [{content: "x", score: 80}, {content: "y", score: 90}]
+
+所有分数：{{result[*].score}}
+# 结果：[80, 90]
+
+所有内容：{{result[*].content}}
+# 结果：["x", "y"]
+```
+
+| 语法 | 说明 |
+|------|------|
+| `{{arr[*].field}}` | 提取数组中每个元素的 `field` 字段，组成新的简单数组 |
+
+**在 template 步骤中使用投影：**
+
+```yaml
+### step: extract_scores
+
+**type**: template
+**varName**: scores
+
+```template
+{{result[*].score}}
+```
+```
+
+执行后，`scores` 变量值为 `[80, 90]`，可直接传递给下一步骤或工具。
+
+> **说明**：数组投影仅支持提取一级字段。对于嵌套字段提取或复杂数组操作，请使用内置工具（参见第 10 章）。
+
 **循环渲染：**
 
 使用 `{{#for array}}...{{/for}}` 遍历数组。
@@ -584,7 +693,7 @@ when:
 区域：华南，商品：产品C，销售量：180
 ```
 
-**简单数组** — 使用 `{{_}}` 引用当前迭代元素：
+**简单数组** — 推荐使用 `{{_}}` 引用当前迭代元素：
 
 ```template
 {{#for tags}}
@@ -600,14 +709,121 @@ when:
 - 待审核
 ```
 
-> `{{_}}` 代表当前迭代元素本身。对于结构化数组，`{{_}}` 也可使用，此时代表整个元素对象。
+> `{{_}}` 代表当前迭代元素本身。**推荐在简单数组（元素为基本类型）的循环中使用**。对于结构化数组，建议直接引用字段名而非使用 `{{_}}`。
 
-> **说明**：模板支持变量替换、表达式求值、数组索引访问和循环渲染，不支持条件渲染语法。条件控制通过步骤级 `when` 属性实现。
+**循环索引（1.2.0 新增）：**
+
+在循环体内使用 `{{_index}}` 获取当前迭代的索引值（从 0 开始）：
+
+```template
+{{#for result}}
+第 {{_index + 1}} 条：{{region}}，{{product}}，销售量：{{amount}}
+{{/for}}
+```
+
+渲染结果：
+
+```
+第 1 条：华东，产品A，销售量：150
+第 2 条：华北，产品B，销售量：200
+第 3 条：华南，产品C，销售量：180
+```
+
+**循环内置变量汇总：**
+
+| 变量 | 说明 |
+|------|------|
+| `{{_}}` | 当前迭代元素本身（推荐用于简单数组） |
+| `{{_index}}` | 当前迭代索引（从 0 开始） |
+
+**条件渲染（1.2.0 新增）：**
+
+使用 `{{#when condition}}...{{/when}}` 在模板内部进行条件渲染。这与步骤级的 `when` 条件执行使用相同的关键词，保持语义一致。
+
+**基本语法：**
+
+```template
+{{#when condition}}
+条件为真时显示的内容
+{{/when}}
+```
+
+**带 else 分支：**
+
+```template
+{{#when condition}}
+条件为真时显示
+{{:else}}
+条件为假时显示
+{{/when}}
+```
+
+**条件表达式语法：**
+
+- 条件表达式直接写在 `{{#when ...}}` 内部，**不需要**额外的 `{{}}`
+- 字符串字面量使用双引号 `"`
+- 支持与步骤级 when 相同的操作符
+
+| 操作符 | 说明 | 示例 |
+|--------|------|------|
+| `==` | 等于 | `{{#when status == "active"}}` |
+| `!=` | 不等于 | `{{#when count != 0}}` |
+| `>` | 大于 | `{{#when score > 90}}` |
+| `<` | 小于 | `{{#when _index < 3}}` |
+| `>=` | 大于等于 | `{{#when rate >= 100}}` |
+| `<=` | 小于等于 | `{{#when value <= 0}}` |
+| `&&` | 逻辑与 | `{{#when a > 0 && b > 0}}` |
+| `\|\|` | 逻辑或 | `{{#when x == 0 \|\| y == 0}}` |
+
+**在循环中使用条件渲染：**
+
+```template
+{{#for items}}
+{{_index}}. {{name}}{{#when _index == 0}}（首项）{{/when}}
+{{/for}}
+```
+
+渲染结果（假设 items 有 3 条）：
+```
+0. 产品A（首项）
+1. 产品B
+2. 产品C
+```
+
+**条件渲染示例：**
+
+```template
+## 销售报告
+
+| 指标 | 数值 |
+|------|------|
+| 销售额 | {{total_sales}} 万元 |
+| 目标 | {{target}} 万元 |
+| 达成率 | {{achievement_rate}}% |
+
+{{#when target_achieved}}
+✅ 已达成销售目标
+{{:else}}
+⚠️ 未达成销售目标，差距 {{gap}} 万元
+{{/when}}
+```
+
+**步骤级 when vs 模板级 {{#when}} 对比：**
+
+| 特性 | 步骤级 `when` | 模板级 `{{#when}}` |
+|------|--------------|-------------------|
+| 作用范围 | 控制整个步骤是否执行 | 控制模板内部分内容是否渲染 |
+| 语法位置 | YAML 配置块内 | 模板代码块内 |
+| 变量引用 | 需要 `{{variable}}` | 直接使用变量名 |
+| 字符串引号 | 转义双引号 `\"` | 普通双引号 `"` |
+| 示例 | `expr: "{{status}} == \"done\""` | `{{#when status == "done"}}` |
+
+> **说明**：模板支持变量替换、表达式求值、数组索引访问、数组投影、循环渲染和条件渲染。条件渲染使用 `{{#when}}` 语法（1.2.0 新增），与步骤级 `when` 条件执行保持关键词一致。
 
 ---
 
 
-## 5. 新增：UI 展示语义章节（1.1.0 核心）
+## 5. UI 展示语义
 
 ### 5.1 核心设计原则
 
@@ -662,8 +878,6 @@ total_sales: {{total_sales}}
 | 总销售额 | {{total_sales}} 万元 |
 | 销售目标 | {{target}} 万元 |
 | 达成率 | {{achievement_rate}}% |
-
-**目标状态**: {{#if target_achieved}}✅ 已达成{{else}}⚠️ 未达成{{/if}}
 ```
 
 ### 5.2 display 类型
@@ -960,10 +1174,10 @@ layout:
 
 | 来源 | 说明 | 示例 |
 |------|------|------|
-| `input_schema` | 用户初始输入的字段 | `{{company}}`、`{{period}}` |
-| `await` 步骤 | 用户在中间步骤输入的字段（由 `input_schema` 定义） | `{{confirm}}`、`{{notes}}` |
-| `tool` 步骤 | 工具通过 `output.put(key, value)` 写入的字段 | `{{total_sales}}`、`{{data}}` |
-| `prompt` / `template` 步骤 | 通过 `varName` 写入的字段 | `{{report}}`、`{{title}}` |
+| `input_schema` | 用户初始输入的字段 | `company`、`period` |
+| `await` 步骤 | 用户在中间步骤输入的字段 | `confirm`、`notes` |
+| `tool` 步骤 | 工具输出的字段 | `total_sales`、`data` |
+| `prompt` / `template` 步骤 | 通过 `varName` 定义的输出 | `report`、`title` |
 
 > **注意**：mapping 的数据来源**不限于** `output_schema` 中定义的字段。`output_schema` 的作用是声明最终输出结构和进行输出验证，而 UI 渲染可以使用执行过程中产生的任意变量。
 
@@ -1000,7 +1214,7 @@ config 负责“组件行为”
 
 ### 6.1 Tool 步骤
 
-调用已注册的外部工具（HTTP API、数据库、Java Service 等）。工具通过 `ToolOutputContext.put(key, value)` 直接将输出写入执行上下文，后续步骤可通过 key 名直接引用。
+调用已注册的外部工具（HTTP API、数据库、内部服务等）。工具执行后会将输出写入执行上下文，后续步骤可通过输出的 key 名直接引用。
 
 #### 配置格式
 
@@ -1021,15 +1235,15 @@ output_schema:
 | 字段 | 必需 | 说明 |
 |------|------|------|
 | `type` | 是 | 必须为 `tool` |
-| `tool` | 是 | 工具名称 |
+| `tool` | 是 | 工具名称（需在平台中已注册） |
 | `input` | 是 | 工具输入参数（支持模板语法） |
-| `output_schema` | 是 | 声明工具输出的 key 及其类型（纯可读性，不参与执行逻辑） |
+| `output_schema` | 是 | 声明工具输出的 key 及其类型 |
 
-> **注意**：Tool 步骤**不需要** `varName`。工具的输出 key 由工具的 Java 实现决定（通过 `output.put(key, value)` 调用）。`output_schema` 仅用于让技能文件具有自描述性，方便阅读者了解工具会产出哪些变量。
+> **注意**：Tool 步骤**不需要** `varName`。工具的输出 key 由工具定义决定，技能开发者需查阅工具文档了解其输出字段。`output_schema` 用于声明预期输出，便于技能文件的自描述和阅读理解。
 
 #### 输入参数
 
-YAML 配置块中，`input` 键下定义工具的输入参数，`output_schema` 键声明输出。两者在 YAML 结构上是平级的，解析器分别读取：
+在 YAML 配置块中，`input` 键下定义工具的输入参数，`output_schema` 键声明预期输出：
 
 ```yaml
 input:
@@ -1041,26 +1255,19 @@ output_schema:
     description: 总销售额
 ```
 
-`input` 下的内容传递给工具的 `execute()` 方法，`output_schema` 不传递。
+##### 参数类型
 
-##### 参数类型系统
-
-**重要原则**：工具从执行上下文获取的输入始终是 **Java 对象**，不是 JSON 字符串。
-
-**参数类型传递规则：**
-
-| YAML 中的值类型 | 传递给工具的 Java 类型 | 示例 |
-|-----------------|---------------------|------|
-| 字符串 | `String` | `q: "{{query}}"` → `String` |
-| 数字 | `Long` 或 `Double` | `count: 10` → `Long` |
-| 布尔值 | `Boolean` | `enabled: true` → `Boolean` |
-| 数组（列表） | `List<Object>` | 见下方示例 |
-| 对象 | `Map<String, Object>` | 见下方说明 |
-| null | `null` | `value: null` → `null` |
+| YAML 中的值类型 | 说明 | 示例 |
+|-----------------|------|------|
+| 字符串 | 文本值，支持模板变量 | `q: "{{query}}"` |
+| 数字 | 整数或小数 | `count: 10` |
+| 布尔值 | true 或 false | `enabled: true` |
+| 数组 | 列表结构 | 见下方示例 |
+| 对象 | 键值对结构 | 嵌套的 YAML 对象 |
+| null | 空值 | `value: null` |
 
 **数组参数示例：**
 
-YAML 定义：
 ```yaml
 input:
   tags:
@@ -1069,22 +1276,15 @@ input:
     - fixed_tag
 ```
 
-工具接收到的 Java 对象：
-```java
-Map<String, Object> input = {
-  "tags": List<Object> ["值1", "值2", "fixed_tag"]
-}
-```
+**模板变量渲染：**
 
-**模板变量渲染规则：**
-
-1. **简单值替换**：`{{variable}}` 直接替换为变量值
-2. **数组传递**：数组类型的变量以 `List<Object>` 形式传递
-3. **对象传递**：对象类型的变量以 `Map<String, Object>` 形式传递
+- `{{variable}}` 会被替换为上下文中对应变量的值
+- 数组类型变量整体传递
+- 对象类型变量整体传递
 
 #### output_schema 声明
 
-在 YAML 配置块中，`output_schema` 键声明工具的输出变量（纯可读性，不参与执行）：
+`output_schema` 声明工具的预期输出字段，便于技能文件自描述：
 
 ```yaml
 input:
@@ -1101,30 +1301,21 @@ output_schema:
     description: 达成率
 ```
 
-#### 工具输出模型
+工具执行后，输出变量会写入执行上下文，后续步骤可通过 `{{key}}` 直接引用。
 
-工具的 `execute()` 方法签名为：
+#### 变量类型
 
-```java
-void execute(Map<String, Object> input, ToolOutputContext output) throws ToolExecutionException;
-```
+工具输出支持以下类型：
 
-工具通过 `output.put(key, value)` 将输出变量写入执行上下文。后续步骤直接通过 `{{key}}` 引用这些变量。
+| 类型 | 说明 |
+|------|------|
+| string | 文本 |
+| number | 数字（整数或小数） |
+| boolean | 布尔值 |
+| array | 列表 |
+| object | 键值对 |
 
-##### 变量类型约束
-
-技能上下文中的变量类型：
-
-| 类型 | Java 类型 | 说明 |
-|------|-----------|------|
-| string | `String` | 文本 |
-| number | `Long` / `Double` | 数字 |
-| boolean | `Boolean` | 布尔值 |
-| array | `List<Object>` | 列表 |
-| object | `Map<String, Object>` | 键值对 |
-
-
-##### 变量命名冲突处理
+#### 变量命名冲突处理
 
 当同一工具被多次调用时（例如两次 `json_select`），后一次的输出会覆盖前一次的同名变量。解决方式是在两次调用之间插入 `template` 步骤，将需要保留的变量复制到新名称：
 
@@ -1168,24 +1359,6 @@ output_schema:
 
 
 上例中，`save_region_data` 步骤在第二次 `json_select` 覆盖 `result` 之前，将其保存为 `region_data_json`。
-
-#### 工具实现建议
-
-```java
-@Override
-public void execute(Map<String, Object> input, ToolOutputContext output) throws ToolExecutionException {
-    // 获取基本类型参数
-    String data = (String) input.get("data");
-    String path = (String) input.get("path");
-
-    // 输出基本类型到上下文
-    output.put("status", "success");
-    output.put("count", 42);
-
-    // 复杂数据序列化为 JSON 字符串后写入上下文
-    output.put("result", processedJsonString);
-}
-```
 
 ### 6.2 Prompt 步骤
 
@@ -1342,7 +1515,11 @@ input_schema:
 
 **type**: template
 **varName**: order_result
-**when**: confirm == true
+
+```yaml
+when:
+  expr: "{{confirm}} == true"
+```
 
 ```template
 订单 {{order_id}} 已确认，总金额 ¥{{total_amount}}。
@@ -1352,7 +1529,11 @@ input_schema:
 
 **type**: template
 **varName**: cancel_result
-**when**: confirm == false
+
+```yaml
+when:
+  expr: "{{confirm}} == false"
+```
 
 ```template
 订单 {{order_id}} 已取消。
@@ -1369,7 +1550,7 @@ input_schema:
 ~~~markdown
 # skill: chat
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 通用对话 Skill，用于回答用户的各类问题。
@@ -1421,7 +1602,7 @@ mapping:
 ~~~markdown
 # skill: simple_search
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 简单搜索 Skill，用于搜索相关信息。
@@ -1505,7 +1686,7 @@ output_schema:
 ~~~markdown
 # skill: order_confirmation
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 订单确认示例 - 演示 await step 的人机交互功能
@@ -1604,7 +1785,11 @@ input_schema:
 
 **type**: template
 **varName**: order_result
-**when**: confirm == true
+
+```yaml
+when:
+  expr: "{{confirm}} == true"
+```
 
 ```template
 订单 {{order_id}} 已确认，总金额 ¥{{total_amount}}。
@@ -1615,7 +1800,11 @@ input_schema:
 
 **type**: template
 **varName**: cancel_result
-**when**: confirm == false
+
+```yaml
+when:
+  expr: "{{confirm}} == false"
+```
 
 ```template
 订单 {{order_id}} 已取消。
@@ -1641,7 +1830,7 @@ input_schema:
 ~~~markdown
 # skill: financial_analysis
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 对企业财务状况进行分析，并生成结构化分析报告。
@@ -1764,7 +1953,7 @@ output_schema:
 ~~~markdown
 # skill: sales_report
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 生成销售数据报表
@@ -1793,6 +1982,8 @@ period:
 headers:
   type: array
   description: 表头
+  items:
+    type: string
 data:
   type: array
   description: 表格数据
@@ -1870,7 +2061,7 @@ output_schema:
 ~~~markdown
 # skill: sales_trend_analysis
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 分析销售趋势并生成图表
@@ -1925,9 +2116,15 @@ trend_data:
     sales:
       type: number
       description: 销售额
-options:
+chart_options:
   type: object
   description: 图表配置选项
+  show_legend:
+    type: boolean
+    description: 是否显示图例
+  show_grid:
+    type: boolean
+    description: 是否显示网格线
 ```
 
 ## ui
@@ -1962,7 +2159,7 @@ mapping:
 ~~~markdown
 # skill: export_report
 
-**version**: 1.1.0
+**version**: 1.2.0
 
 ## description
 导出报表为文件
@@ -2235,9 +2432,10 @@ output_schema:
 
 **type**: tool
 **tool**: log
-**when**: result_count == 0
 
 ```yaml
+when:
+  expr: "{{result_count}} == 0"
 input:
   level: "warn"
   message: "搜索无结果"
@@ -2280,12 +2478,267 @@ output_schema:
 
 ---
 
-## 10. 附录
+## 10. 内置工具（1.2.0 新增）
 
-### 10.1 保留关键词
+Aegis 提供一组内置工具用于处理常见的数据操作，这些工具无需额外注册即可在技能中使用。
+
+### 10.1 array.zip
+
+将多个简单数组按索引位置组装为一个结构化数组（对象数组）。
+
+**适用场景**：当你有多个平行的简单数组，需要将它们组合成结构化数据时使用。
+
+**输入参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `arrays` | object | 是 | 键值对，key 为目标字段名，value 为源数组变量 |
+
+**输出**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | array | 组装后的结构化数组 |
+
+**使用示例**：
+
+假设上下文中有：
+- `names = ["张三", "李四", "王五"]`
+- `scores = [85, 92, 78]`
+- `grades = ["B", "A", "C"]`
+
+~~~markdown
+### step: combine_data
+
+**type**: tool
+**tool**: array.zip
+
+```yaml
+input:
+  arrays:
+    name: "{{names}}"
+    score: "{{scores}}"
+    grade: "{{grades}}"
+output_schema:
+  result:
+    type: array
+    description: 组装后的学生成绩数组
+    items:
+      name:
+        type: string
+        description: 姓名
+      score:
+        type: number
+        description: 分数
+      grade:
+        type: string
+        description: 等级
+```
+~~~
+
+**执行结果**：
+
+`result` 变量值为：
+```json
+[
+  {"name": "张三", "score": 85, "grade": "B"},
+  {"name": "李四", "score": 92, "grade": "A"},
+  {"name": "王五", "score": 78, "grade": "C"}
+]
+```
+
+**注意事项**：
+
+1. 所有输入数组的长度必须相同，否则工具将抛出数组越界异常
+2. 数组元素按索引位置一一对应
+
+### 10.2 array.flatten
+
+将嵌套数组展平为一维数组。
+
+**输入参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `array` | array | 是 | 要展平的嵌套数组 |
+| `depth` | number | 否 | 展平深度，默认为 1 |
+
+**输出**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | array | 展平后的数组 |
+
+**使用示例**：
+
+~~~markdown
+### step: flatten_data
+
+**type**: tool
+**tool**: array.flatten
+
+```yaml
+input:
+  array: "{{nested_items}}"
+  depth: 1
+output_schema:
+  result:
+    type: array
+    description: 展平后的数组
+    items:
+      type: string
+```
+~~~
+
+### 10.3 array.unique
+
+对数组去重，返回不包含重复元素的新数组。
+
+**输入参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `array` | array | 是 | 要去重的数组 |
+| `key` | string | 否 | 对于结构化数组，指定用于判断重复的字段名 |
+
+**输出**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | array | 去重后的数组 |
+
+**使用示例**：
+
+~~~markdown
+### step: remove_duplicates
+
+**type**: tool
+**tool**: array.unique
+
+```yaml
+input:
+  array: "{{items}}"
+  key: "id"
+output_schema:
+  result:
+    type: array
+    description: 去重后的数组
+    items:
+      id:
+        type: string
+      name:
+        type: string
+```
+~~~
+
+### 10.4 array.sort
+
+对数组进行排序。
+
+**输入参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `array` | array | 是 | 要排序的数组 |
+| `key` | string | 否 | 对于结构化数组，指定排序字段 |
+| `order` | string | 否 | 排序方向：`asc`（升序，默认）或 `desc`（降序） |
+
+**输出**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | array | 排序后的数组 |
+
+**使用示例**：
+
+~~~markdown
+### step: sort_by_score
+
+**type**: tool
+**tool**: array.sort
+
+```yaml
+input:
+  array: "{{students}}"
+  key: "score"
+  order: "desc"
+output_schema:
+  result:
+    type: array
+    description: 按分数降序排列的学生数组
+    items:
+      name:
+        type: string
+      score:
+        type: number
+```
+~~~
+
+### 10.5 array.filter
+
+根据条件过滤数组元素。
+
+**输入参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `array` | array | 是 | 要过滤的数组 |
+| `condition` | string | 是 | 过滤条件表达式，支持 `==`、`!=`、`>`、`<`、`>=`、`<=` |
+
+**输出**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `result` | array | 过滤后的数组 |
+
+**使用示例**：
+
+~~~markdown
+### step: filter_high_scores
+
+**type**: tool
+**tool**: array.filter
+
+```yaml
+input:
+  array: "{{students}}"
+  condition: "score >= 90"
+output_schema:
+  result:
+    type: array
+    description: 高分学生数组
+    items:
+      name:
+        type: string
+      score:
+        type: number
+```
+~~~
+
+### 10.6 内置工具与投影语法的选择
+
+| 需求 | 推荐方式 | 说明 |
+|------|----------|------|
+| 提取单一字段组成简单数组 | `{{arr[*].field}}` 投影语法 | 简洁高效，适合简单场景 |
+| 多个数组组装为对象数组 | `array.zip` 工具 | 支持任意数量的数组组合 |
+| 数组排序、过滤、去重 | 对应的 `array.*` 工具 | 提供完整的数据操作能力 |
+| 复杂的数组变换 | 工具组合使用 | 通过多个步骤完成复杂操作 |
+
+---
+
+## 11. 附录
+
+### 11.1 保留关键词
 
 以下词汇为 DSL 保留关键词，不能用作字段名或变量名：
-- 以`_`开头的任意词
+
+**系统保留字（以 `_` 开头）：**
+- `_` — 循环中的当前元素引用
+- `_index` — 循环中的当前索引
+- `_input` — 用户原始输入
+- 以 `_` 开头的任意其他词（预留给系统扩展）
+
+**DSL 关键词：**
 - `type`
 - `tool`
 - `when`
@@ -2297,8 +2750,12 @@ output_schema:
 - `description`
 - `required`
 - `items`
+- `options`
+- `display`
+- `mapping`
+- `layout`
 
-### 10.2 修订历史
+### 11.2 修订历史
 
 | 版本 | 日期 | 说明 |
 |------|------|------|
@@ -2318,3 +2775,4 @@ output_schema:
 | 1.0.0 | 2026-02-14 | 将意图关键词intent改为能力关键词capabilityTags |
 | 1.1.0 | 2026-02-21 | 新增 UI 展示语义章节（第5章）：引入 `## ui` 作为必需顶层章节；定义 display 类型（markdown/list/table/bar_chart/line_chart/area_chart/pie_chart/file/mixed）；建立组件分类体系（单对象组件、集合型组件、语义角色型组件）；mixed 采用纯布局 DSL 设计，通过 `layout` 数组声明 UI 树结构；规范 mapping 与 config 的职责划分；确立"数据驱动 UI、前端不做智能猜测"的核心原则；更新第7章所有完整示例以符合 1.1.0 规范（添加 version 字段、ui 章节、修正 output_schema 与 ui mapping 的一致性） |
 | 1.1.0 | 2026-02-23 | 新增审计日志章节（第9章）：强调审计日志是 Aegis Skill 核心特性；文档化 `log` 工具的使用方法和最佳实践；建议每个技能至少输出一条审计日志以确保执行可追溯 |
+| 1.2.0 | 2026-02-27 | **类型完整性规则**：强制要求 `array` 和 `object` 类型必须完整定义子级结构，直到最末级为基本类型（string/number/boolean）；**数组字段投影**：新增 `{{arr[*].field}}` 语法，从结构化数组提取单一字段组成简单数组；**循环索引**：新增 `{{_index}}` 内置变量获取当前循环索引；**内置工具**：新增第10章，提供 `array.zip`、`array.flatten`、`array.unique`、`array.sort`、`array.filter` 等数组操作工具；**统一 when 条件语法**：步骤级条件执行统一使用 YAML 格式 `when: expr: "..."`，移除 Markdown 段落格式；新增模板条件渲染 `{{#when condition}}...{{/when}}` 语法，与步骤级 when 保持关键词一致；更新保留关键词列表 |
