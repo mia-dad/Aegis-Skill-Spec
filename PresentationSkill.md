@@ -2,7 +2,7 @@
 
 > 本文档是 [Aegis Skill DSL 规范](./README.md) 的 PresentationSkill 专属部分。
 >
-> **规范版本：2.1.0**
+> **规范版本：2.2.0**
 
 ## 目录
 
@@ -29,6 +29,7 @@
 |------|------|------|
 | `# skill: <id>` | 是 | 技能唯一标识符 |
 | `**version**` | 否 | 技能版本号，默认 `1.0.0` |
+| `**ignore**` | 否 | 技能级异常处理，默认 `false` |
 | `**type**: PresentationSkill` | 是 | 技能类型，必须显式声明 |
 | `## description` | 否 | 技能描述 |
 | `## capabilityTags` | 否 | 能力关键词列表 |
@@ -311,7 +312,7 @@ mapping:
 ~~~markdown
 # skill: chat_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description
@@ -343,7 +344,7 @@ mapping:
 ~~~markdown
 # skill: search_results_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description
@@ -391,7 +392,7 @@ config:
 ~~~markdown
 # skill: order_confirmation_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description
@@ -432,7 +433,7 @@ config:
 ~~~markdown
 # skill: financial_analysis_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description
@@ -508,7 +509,7 @@ layout:
 ~~~markdown
 # skill: sales_report_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description
@@ -582,7 +583,7 @@ layout:
 ~~~markdown
 # skill: file_download_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description
@@ -653,7 +654,7 @@ layout:
 ~~~markdown
 # skill: data_insight_display
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: PresentationSkill
 
 ## description

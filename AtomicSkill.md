@@ -2,7 +2,7 @@
 
 > 本文档是 [Aegis Skill DSL 规范](./README.md) 的 AtomicSkill 专属部分。
 >
-> **规范版本：2.1.0**
+> **规范版本：2.2.0**
 
 ## 目录
 
@@ -30,6 +30,7 @@
 |------|------|------|
 | `# skill: <id>` | 是 | 技能唯一标识符 |
 | `**version**` | 否 | 技能版本号，默认 `1.0.0` |
+| `**ignore**` | 否 | 技能级异常处理，默认 `false` |
 | `**type**: AtomicSkill` | 是 | 技能类型（可省略，为默认值） |
 | `## description` | 否 | 技能描述 |
 | `## capabilityTags` | 否 | 能力关键词列表 |
@@ -372,7 +373,7 @@ output_schema:
 ~~~markdown
 # skill: chat
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: AtomicSkill
 
 ## description
@@ -421,7 +422,7 @@ content:
 ~~~markdown
 # skill: simple_search
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: AtomicSkill
 
 ## description
@@ -500,7 +501,7 @@ output_schema:
 ~~~markdown
 # skill: order_confirmation
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: AtomicSkill
 
 ## description
@@ -638,7 +639,7 @@ when:
 ~~~markdown
 # skill: financial_analysis
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: AtomicSkill
 
 ## description
@@ -738,7 +739,7 @@ output_schema:
 ~~~markdown
 # skill: sales_report
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: AtomicSkill
 
 ## description
@@ -833,7 +834,7 @@ output_schema:
 ~~~markdown
 # skill: export_report
 
-**version**: 2.1.0
+**version**: 2.2.0
 **type**: AtomicSkill
 
 ## description
