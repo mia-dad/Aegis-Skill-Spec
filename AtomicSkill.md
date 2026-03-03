@@ -2,7 +2,7 @@
 
 > 本文档是 [Aegis Skill DSL 规范](./README.md) 的 AtomicSkill 专属部分。
 >
-> **规范版本：2.2.0**
+> **规范版本：3.1.0**
 
 ## 目录
 
@@ -51,13 +51,15 @@
 
 ```yaml
 <field_name>:
-  type: <string|number|boolean|datetime|resource|array|object>
+  type: <SemanticType>
   required: <true|false>
   description: <字段描述>
   traits:                    # 可选，能力特征
     - <trait_name>
   semantic_role: <role>      # 可选，语义角色
 ```
+
+> **3.1.0 变更**：`type` 必须使用语义类型（如 `Answer`、`Analysis`、`Evidence`），禁止使用原始类型（`string`、`number` 等）。详见 [README.md 2. 语义类型系统](./README.md#2-语义类型系统)。
 
 每个输出字段必须包含 `type` 和 `description`。`required` 默认为 `true`，可设为 `false` 标记可选输出。
 
@@ -67,59 +69,77 @@
 
 ### 2.2 类型完整性规则
 
-**当字段类型为 `array` 或 `object` 时，必须完整定义其子级结构，直到最末级节点的类型为基本类型（`string`、`number`、`boolean`、`datetime`、`resource`）。**
-
-此规则与 `input_schema` 一致，确保技能输出可被下游技能作为输入正确解析。
-
-### 2.3 数组类型与 items
-
-与输入定义规则一致：`array` 类型使用 `items` 描述元素结构，子字段直接平铺。
-
-#### 简单数组
+**当字段类型为 `array` 时，必须通过 `items` 指定元素的语义类型。**
 
 ```yaml
-headers:
+# ✅ 推荐：使用语义类型
+evidence_list:
   type: array
-  description: 表头列表
+  description: 证据列表
+  items: Evidence
+
+# ⚠️ 禁止：使用原始类型
+results:
+  type: array
   items:
     type: string
 ```
 
-#### 结构化数组
+> **例外**：在 Step 的 `output_schema` 中（Tool 返回值映射），允许使用基本类型。
+
+### 2.3 数组类型与 items
+
+`array` 类型使用 `items` 指定元素的语义类型：
 
 ```yaml
+# 搜索结果列表 - 使用 SearchResult 语义类型
 results:
   type: array
   description: 搜索结果列表
-  items:
-    title:
-      type: string
-      description: 标题
-    url:
-      type: string
-      description: URL链接
-    score:
-      type: number
-      description: 相关性分数
+  items: SearchResult
+  traits:
+    - countable
+    - emptiable
+
+# 关键要点列表 - 使用 Fact 语义类型
+key_points:
+  type: array
+  description: 关键要点
+  items: Fact
+
+# 证据列表 - 使用 Evidence 语义类型
+evidence_list:
+  type: array
+  description: 收集的证据
+  items: Evidence
 ```
 
-### 2.4 对象类型
+### 2.4 使用语义类型替代 object
 
-object 类型的子字段直接平铺在父字段下，不使用 `properties` 包装：
+> **3.1.0 变更**：推荐使用具体的语义类型替代泛化的 `object` 类型。
 
 ```yaml
+# ⚠️ 不推荐：使用 object 类型
 summary:
   type: object
   description: 汇总信息
   content:
     type: string
-    description: 结论
   total_sales:
     type: number
-    description: 总销售额
-  average_rate:
-    type: number
-    description: 平均达成率
+
+# ✅ 推荐：使用 Analysis 语义类型
+analysis:
+  type: Analysis
+  description: 分析结果
+  traits:
+    - emptiable
+  semantic_role: summary
+
+# ✅ 推荐：使用 Conclusion 语义类型
+conclusion:
+  type: Conclusion
+  description: 最终结论
 ```
 
 ### 2.5 输出校验规则
@@ -131,70 +151,57 @@ summary:
 
 ### 2.6 能力语义
 
-AtomicSkill 的 `output_schema` 推荐使用能力语义来描述输出字段的运算能力和业务语义。详细说明参见 [README.md 2.10 能力语义系统](./README.md#210-能力语义系统)。
+AtomicSkill 的 `output_schema` 推荐使用能力语义来描述输出字段的运算能力和业务语义。详细说明参见 [README.md 3.10 能力语义系统](./README.md#310-能力语义系统)。
 
 **带能力语义的输出定义示例：**
 
 ```yaml
+# 使用 Score 语义类型
 price:
-  type: number
-  description: 商品价格
+  type: Score
+  description: 商品价格评分
   traits:
     - comparable
     - scorable
   semantic_role: finance
 
+# 使用 Analysis 语义类型
 analysis:
-  type: string
+  type: Analysis
   description: 分析结论
   traits:
     - emptiable
-    - searchable
   semantic_role: summary
 
+# 使用 array + SearchResult 语义类型
 results:
   type: array
   description: 搜索结果
+  items: SearchResult
   traits:
     - countable
     - emptiable
   semantic_role: record_list
-  items:
-    title:
-      type: string
-      description: 标题
-    score:
-      type: number
-      description: 相关性分数
-      traits:
-        - comparable
-        - scorable
-      semantic_role: score
 ```
 
 ### 2.7 输出定义示例
 
 ```yaml
+# 使用 Answer 语义类型
 title:
-  type: string
+  type: Answer
   description: 报表标题
   traits:
     - emptiable
 
+# 使用 array + Entity 语义类型
 data:
   type: array
   description: 数据列表
+  items: Entity
   traits:
     - countable
-  items:
-    name:
-      type: string
-      description: 名称
-    value:
-      type: number
-      description: 数值
-      traits:
-        - comparable
+    - emptiable
 ```
 
 ---
@@ -373,7 +380,7 @@ output_schema:
 ~~~markdown
 # skill: chat
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: AtomicSkill
 
 ## description
@@ -386,14 +393,17 @@ output_schema:
 ## input_schema
 
 ```yaml
-prompt: string
+prompt:
+  type: Query
+  required: true
+  description: 用户输入的问题
 ```
 
 ## output_schema
 
 ```yaml
 content:
-  type: string
+  type: Answer
   description: AI 助手回答内容
   traits:
     - emptiable
@@ -422,7 +432,7 @@ content:
 ~~~markdown
 # skill: simple_search
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: AtomicSkill
 
 ## description
@@ -437,7 +447,7 @@ content:
 
 ```yaml
 query:
-  type: string
+  type: Query
   required: true
   description: 搜索关键词
 ```
@@ -448,28 +458,11 @@ query:
 results:
   type: array
   description: 搜索结果列表
+  items: SearchResult
   traits:
     - countable
     - emptiable
   semantic_role: document_list
-  items:
-    title:
-      type: string
-      description: 标题
-      traits:
-        - searchable
-    snippet:
-      type: string
-      description: 摘要
-      traits:
-        - emptiable
-        - searchable
-      semantic_role: summary
-    link:
-      type: string
-      description: 链接
-      traits:
-        - equatable
 ```
 
 ## steps
@@ -501,7 +494,7 @@ output_schema:
 ~~~markdown
 # skill: order_confirmation
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: AtomicSkill
 
 ## description
@@ -514,19 +507,19 @@ output_schema:
 
 ```yaml
 order_id:
-  type: string
+  type: Entity
   required: true
   description: 订单编号
 product_name:
-  type: string
+  type: Entity
   required: true
   description: 商品名称
 quantity:
-  type: number
+  type: Count
   required: true
   description: 购买数量
 unit_price:
-  type: number
+  type: Score
   required: true
   description: 单价
 ```
@@ -535,13 +528,13 @@ unit_price:
 
 ```yaml
 level:
-  type: string
+  type: Answer
   description: 提醒级别
 title:
-  type: string
+  type: Answer
   description: 提醒标题
 content:
-  type: string
+  type: Answer
   description: 订单处理结果
 ```
 
@@ -581,11 +574,11 @@ message: |
   请确认以上订单信息是否正确。
 input_schema:
   confirm:
-    type: boolean
+    type: Decision
     required: true
-    description: 是否确认订单
+    description: 是否确认订单（过程控制）
   notes:
-    type: string
+    type: Answer
     required: false
     description: 备注信息（可选）
 ```
@@ -639,7 +632,7 @@ when:
 ~~~markdown
 # skill: financial_analysis
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: AtomicSkill
 
 ## description
@@ -652,44 +645,41 @@ when:
 ## input_schema
 ```yaml
 company:
-  type: string
+  type: Entity
   required: true
+  description: 公司名称
 period:
-  type: string
+  type: Query.constraints
   required: true
+  description: 分析周期
 ```
 
 ## output_schema
 ```yaml
 title:
-  type: string
+  type: Answer
   description: 报告标题
 
 analysis:
-  type: string
+  type: Analysis
   description: 分析内容
+  traits:
+    - emptiable
+  semantic_role: summary
 
 financial_table:
   type: array
   description: 财务数据表格
-  items:
-    region:
-      type: string
-      description: 区域
-    amount:
-      type: number
-      description: 金额
+  items: Fact
+  traits:
+    - countable
 
 trend_data:
   type: array
   description: 趋势数据
-  items:
-    date:
-      type: string
-      description: 日期
-    amount:
-      type: number
-      description: 金额
+  items: Fact
+  traits:
+    - countable
 ```
 
 ## steps
@@ -739,7 +729,7 @@ output_schema:
 ~~~markdown
 # skill: sales_report
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: AtomicSkill
 
 ## description
@@ -754,11 +744,11 @@ output_schema:
 
 ```yaml
 region:
-  type: string
+  type: Entity
   required: true
   description: 地区名称
 period:
-  type: string
+  type: Query.constraints
   required: true
   description: 报表周期
 ```
@@ -769,27 +759,17 @@ period:
 headers:
   type: array
   description: 表头
-  items:
-    type: string
+  items: Answer
 data:
   type: array
   description: 表格数据
-  items:
-    region:
-      type: string
-      description: 区域
-    product:
-      type: string
-      description: 商品名称
-    amount:
-      type: number
-      description: 销售量
+  items: Fact
+  traits:
+    - countable
 summary:
-  type: object
+  type: Analysis
   description: 汇总信息
-  total:
-    type: number
-    description: 总计
+  semantic_role: summary
 ```
 
 ## steps
@@ -834,7 +814,7 @@ output_schema:
 ~~~markdown
 # skill: export_report
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: AtomicSkill
 
 ## description
@@ -849,11 +829,11 @@ output_schema:
 
 ```yaml
 report_id:
-  type: string
+  type: Entity
   required: true
   description: 报表ID
 format:
-  type: string
+  type: Query.constraints
   required: true
   description: 文件格式
   options:
@@ -868,16 +848,10 @@ format:
 files:
   type: array
   description: 生成的文件列表
-  items:
-    file_url:
-      type: string
-      description: 文件下载链接
-    file_name:
-      type: string
-      description: 文件名
-    file_size:
-      type: number
-      description: 文件大小（字节）
+  items: Document
+  traits:
+    - countable
+    - emptiable
 ```
 
 ## steps

@@ -2,7 +2,7 @@
 
 > 本文档是 [Aegis Skill DSL 规范](./README.md) 的 PresentationSkill 专属部分。
 >
-> **规范版本：2.2.0**
+> **规范版本：3.1.0**
 
 ## 目录
 
@@ -82,11 +82,11 @@ config:
   <config_key>: <value>
 ```
 
-| 字段 | 必需 | 说明 |
-|------|------|------|
-| `display` | 是 | 展示类型，决定渲染的组件 |
-| `mapping` | 是 | 数据字段映射 |
-| `config` | 否 | 组件配置项 |
+| 字段        | 必需  | 说明           |
+| --------- | --- | ------------ |
+| `display` | 是   | 展示类型，决定渲染的组件 |
+| `mapping` | 是   | 数据字段映射       |
+| `config`  | 否   | 组件配置项        |
 
 ### 2.3 Display 类型
 
@@ -312,7 +312,7 @@ mapping:
 ~~~markdown
 # skill: chat_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -326,7 +326,7 @@ mapping:
 
 ```yaml
 content:
-  type: string
+  type: Answer
   description: AI 助手回答内容
 ```
 
@@ -344,7 +344,7 @@ mapping:
 ~~~markdown
 # skill: search_results_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -360,16 +360,7 @@ mapping:
 results:
   type: array
   description: 搜索结果列表
-  items:
-    title:
-      type: string
-      description: 标题
-    snippet:
-      type: string
-      description: 摘要
-    link:
-      type: string
-      description: 链接
+  items: SearchResult
 ```
 
 ## ui
@@ -392,7 +383,7 @@ config:
 ~~~markdown
 # skill: order_confirmation_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -406,13 +397,13 @@ config:
 
 ```yaml
 level:
-  type: string
+  type: Answer
   description: 提醒级别
 title:
-  type: string
+  type: Answer
   description: 提醒标题
 content:
-  type: string
+  type: Answer
   description: 订单处理结果
 ```
 
@@ -433,7 +424,7 @@ config:
 ~~~markdown
 # skill: financial_analysis_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -447,34 +438,22 @@ config:
 
 ```yaml
 title:
-  type: string
+  type: Answer
   description: 报告标题
 
 analysis:
-  type: string
+  type: Analysis
   description: 分析内容
 
 financial_table:
   type: array
   description: 财务数据表格
-  items:
-    region:
-      type: string
-      description: 区域
-    amount:
-      type: number
-      description: 金额
+  items: Fact
 
 trend_data:
   type: array
   description: 趋势数据
-  items:
-    date:
-      type: string
-      description: 日期
-    amount:
-      type: number
-      description: 金额
+  items: Fact
 ```
 
 ## ui
@@ -509,7 +488,7 @@ layout:
 ~~~markdown
 # skill: sales_report_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -525,27 +504,14 @@ layout:
 headers:
   type: array
   description: 表头
-  items:
-    type: string
+  items: Answer
 data:
   type: array
   description: 表格数据
-  items:
-    region:
-      type: string
-      description: 区域
-    product:
-      type: string
-      description: 商品名称
-    amount:
-      type: number
-      description: 销售量
+  items: Fact
 summary:
-  type: object
+  type: Analysis
   description: 汇总信息
-  total:
-    type: number
-    description: 总计
 ```
 
 ## steps
@@ -583,7 +549,7 @@ layout:
 ~~~markdown
 # skill: file_download_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -599,16 +565,7 @@ layout:
 files:
   type: array
   description: 生成的文件列表
-  items:
-    file_url:
-      type: string
-      description: 文件下载链接
-    file_name:
-      type: string
-      description: 文件名
-    file_size:
-      type: number
-      description: 文件大小（字节）
+  items: Document
 ```
 
 ## steps
@@ -654,7 +611,7 @@ layout:
 ~~~markdown
 # skill: data_insight_display
 
-**version**: 2.2.0
+**version**: 3.1.0
 **type**: PresentationSkill
 
 ## description
@@ -670,16 +627,7 @@ layout:
 data:
   type: array
   description: 原始数据
-  items:
-    category:
-      type: string
-      description: 分类
-    value:
-      type: number
-      description: 数值
-    change:
-      type: number
-      description: 变化率
+  items: Fact
 ```
 
 ## steps

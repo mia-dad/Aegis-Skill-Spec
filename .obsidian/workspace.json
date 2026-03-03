@@ -4,18 +4,18 @@
     "type": "split",
     "children": [
       {
-        "id": "c090b1c1b79714d1",
+        "id": "8c68925949220426",
         "type": "tabs",
         "children": [
           {
-            "id": "2d701d2f6e0ae7da",
+            "id": "37a3a5f1ac7866da",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
                 "file": "README.md",
                 "mode": "source",
-                "source": true
+                "source": false
               },
               "icon": "lucide-file",
               "title": "README"
@@ -53,7 +53,7 @@
             "state": {
               "type": "search",
               "state": {
-                "query": "",
+                "query": "tag:#break：",
                 "matchingCase": false,
                 "explainSearch": false,
                 "collapseAll": false,
@@ -183,6 +183,12 @@
       "bases:创建新数据库": false
     }
   },
-  "active": "9bab7821217f34c2",
-  "lastOpenFiles": []
+  "active": "37a3a5f1ac7866da",
+  "lastOpenFiles": [
+    "AtomicSkill.md",
+    "PresentationSkill.md",
+    "CognitiveSkill.md",
+    "README.md",
+    "IMPLEMENTATION_REQUIREMENTS.md"
+  ]
 }

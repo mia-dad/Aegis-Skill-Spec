@@ -2,7 +2,7 @@
 
 > 本文档是 [Aegis Skill DSL 规范](./README.md) 的 CognitiveSkill 专属部分。
 >
-> **规范版本：3.0.0**
+> **规范版本：3.3.0**
 
 ## 目录
 
@@ -12,8 +12,9 @@
 - [4. foreach 节点](#4-foreach-节点)
 - [5. 表达式语法](#5-表达式语法)
 - [6. 变量作用域](#6-变量作用域)
-- [7. 异常处理](#7-异常处理)
-- [8. 完整示例](#8-完整示例)
+- [7. output_schema 校验策略](#7-output_schema-校验策略)
+- [8. 异常处理](#8-异常处理)
+- [9. 完整示例](#9-完整示例)
 
 ---
 
@@ -75,7 +76,7 @@ ExecutionPlan（执行计划）
 ~~~markdown
 # skill: cognitive_<name>
 
-**version**: 3.0.0
+**version**: 3.1.0
 **timeout**: 30000
 **type**: CognitiveSkill
 
@@ -819,7 +820,7 @@ input: results
 ```yaml
 output_schema:
   summary:
-    type: string
+    type: Answer
     description: 最终摘要
 ```
 
@@ -837,9 +838,221 @@ output_schema:
 
 ---
 
-## 7. 异常处理
+## 7. output_schema 校验策略
 
-### 7.1 技能级 ignore
+### 7.1 与 AtomicSkill 的差异
+
+CognitiveSkill 的 `internal_flow` 支持 `decision` 节点进行条件分支，不同分支可能通过 `select` 调用不同的 AtomicSkill，产生不同语义类型的输出。这导致 `output_schema` 中某些字段的语义类型在**声明期无法确定**。
+
+**典型场景**：
+
+```yaml
+- type: decision
+  condition: {{data_type}} == "document"
+  then:
+    - type: select
+      capability: document_analysis
+      as: result           # 产出 Analysis 类型
+  else:
+    - type: select
+      capability: data_extraction
+      as: result           # 产出 Fact 类型
+```
+
+上例中，`result` 字段的语义类型取决于运行时条件，无法在声明期确定。
+
+### 7.2 校验规则差异
+
+因此，CognitiveSkill 与 AtomicSkill 在 `output_schema` 校验上采用不同策略：
+
+| 校验阶段 | AtomicSkill | CognitiveSkill |
+|----------|-------------|----------------|
+| 声明期 | 严格校验语义类型一致性 | **仅校验语法正确性** |
+| 运行时 | - | 校验实际输出与声明的兼容性 |
+
+### 7.3 声明期校验
+
+CognitiveSkill 在声明期（解析时）仅执行以下校验：
+
+| 校验项 | 说明 |
+|--------|------|
+| `output_schema` 存在性 | 必须声明 `output_schema` |
+| YAML 语法正确性 | 确保 schema 可正确解析 |
+| 字段结构完整性 | 遵循类型完整性规则（array 需要 items 等） |
+
+**不执行**的校验：
+
+| 不校验项 | 原因 |
+|----------|------|
+| internal_flow 各分支输出与 output_schema 的语义类型一致性 | 分支输出类型在声明期无法确定 |
+| select 节点输出类型与 output_schema 声明类型的匹配 | 依赖运行时语义匹配 |
+
+### 7.4 运行时校验
+
+CognitiveSkill 执行完成后，进行以下运行时校验：
+
+| 校验项 | 说明 | 失败处理 |
+|--------|------|----------|
+| required 字段存在 | 检查 `required: true` 的字段是否存在 | 抛出运行时异常 |
+| 字段值非 null | 必需字段的值不能为 null | 抛出运行时异常 |
+| 类型基本兼容 | 输出值的基础类型与声明一致（array、object、string 等） | 抛出运行时异常 |
+
+### 7.5 语义匹配机制
+
+CognitiveSkill 的输出字段在被下游消费时，通过**运行时语义匹配**而非声明期类型检查来确保正确性：
+
+```
+CognitiveSkill 输出 → SemanticInputMapper → 下游 Skill 输入
+                            ↓
+                    多策略字段匹配：
+                    1. 精确名称匹配
+                    2. 语义类型匹配
+                    3. 相似度匹配
+```
+
+**核心原则**：
+
+> `output_schema` 的作用是**契约提示**而非**强类型约束**。
+>
+> - 告诉调用方"可能"的输出结构
+> - 声明 `required` 约束确保必需字段存在
+> - 实际类型校验由运行时语义匹配机制完成
+
+### 7.6 output_schema 与 internal_flow 的映射规则
+
+CognitiveSkill 执行完成后，系统从 ExecutionContext 中**按 output_schema 字段名**提取输出值：
+
+```
+internal_flow 执行完成
+        ↓
+遍历 output_schema 中声明的每个字段
+        ↓
+从 ExecutionContext 中按字段名提取值
+        ↓
+校验 required / 类型
+        ↓
+组装为最终输出 Map
+```
+
+**关键规则**：
+
+| 规则 | 说明 |
+|------|------|
+| 字段名匹配 | output_schema 中的字段名必须与 context 中的变量名一致 |
+| 显式赋值 | 需要通过 `as` 或 `assign` 将值存入正确的变量名 |
+| 无自动映射 | 系统不会自动推断字段映射关系 |
+
+**错误示例**：
+
+```yaml
+# internal_flow 最后一步
+- type: select
+  capability: reasoning
+  as: reasoning_result    # 存入 context["reasoning_result"]
+
+# output_schema
+analysis:                  # 期望从 context["analysis"] 提取
+  type: Analysis
+  required: true
+```
+
+上例中，`reasoning_result` 与 `analysis` 名称不匹配，导致 `analysis` 字段为 null，校验失败。
+
+**正确做法**：使用 `assign` 节点进行字段映射。
+
+### 7.7 使用 assign 提取输出字段
+
+当被调用的 AtomicSkill 输出结构与 CognitiveSkill 的 output_schema 不同时，必须使用 `assign` 节点进行字段提取和映射。
+
+**典型场景**：
+
+```yaml
+# reasoning skill 输出结构
+{
+  "conclusion": "...",
+  "reasoning_chain": [...],
+  "confidence": 0.85
+}
+
+# cognitive_analysis 的 output_schema
+analysis:
+  type: Analysis
+  required: true
+confidence:
+  type: Score
+  required: false
+```
+
+**解决方案**：
+
+```yaml
+# 步骤 N：调用 reasoning，输出存入临时变量
+- type: select
+  capability: reasoning
+  input:
+    question: question
+    evidence: evidence
+  as: reasoning_result    # 临时变量，不是最终输出
+
+# 步骤 N+1：提取 output_schema 所需字段
+- type: assign
+  from: reasoning_result.conclusion
+  to: analysis           # 映射到 output_schema 中的 analysis
+
+- type: assign
+  from: reasoning_result.confidence
+  to: confidence         # 映射到 output_schema 中的 confidence
+```
+
+**最佳实践**：
+
+| 实践 | 说明 |
+|------|------|
+| 临时变量命名 | 使用 `xxx_result` 后缀标识中间结果 |
+| 显式提取 | 为每个 output_schema 字段添加对应的 assign |
+| 支持嵌套访问 | assign 支持点号路径如 `result.field.subfield` |
+| 统一模式 | 所有 CognitiveSkill 都应遵循此模式 |
+
+**完整示例**：
+
+```yaml
+internal_flow:
+  # 执行业务逻辑
+  - type: select
+    capability: analysis
+    as: analysis_result
+
+  # 提取输出字段（与 output_schema 对应）
+  - type: assign
+    from: analysis_result.summary
+    to: summary
+
+  - type: assign
+    from: analysis_result.confidence
+    to: confidence
+
+  - type: assign
+    from: analysis_result.details
+    to: details
+```
+
+### 7.8 设计理念
+
+这种设计符合 CognitiveSkill 的**动态决策**本质：
+
+| 设计考量 | 说明 |
+|----------|------|
+| 灵活性 | 允许不同分支产出不同语义类型的输出 |
+| 显式映射 | 通过 assign 明确指定字段对应关系 |
+| 实用性 | 运行时能正确匹配到下游输入即可 |
+| 简洁性 | 避免复杂的联合类型声明语法 |
+| 兼容性 | 与现有 SemanticInputMapper 匹配机制协同工作 |
+
+---
+
+## 8. 异常处理
+
+### 8.1 技能级 ignore
 
 CognitiveSkill 支持技能级 `ignore` 属性：
 
@@ -847,7 +1060,7 @@ CognitiveSkill 支持技能级 `ignore` 属性：
 **ignore**: true
 ```
 
-### 7.2 成功判定规则
+### 8.2 成功判定规则
 
 **当 `ignore: false`（默认）时**：
 
@@ -862,7 +1075,7 @@ CognitiveSkill 支持技能级 `ignore` 属性：
 
 > 即使某些 select 节点失败，只要最终能生成必需的输出字段，技能即视为成功。
 
-### 7.3 foreach 异常处理
+### 8.3 foreach 异常处理
 
 当 CognitiveSkill 包含 `foreach` 时，异常处理规则如下：
 
@@ -880,7 +1093,7 @@ CognitiveSkill 支持技能级 `ignore` 属性：
 | 全部失败 | 技能视为失败 |
 | 至少一轮成功 | 收集成功轮次结果 |
 
-### 7.4 fallback 与 ignore 的配合
+### 8.4 fallback 与 ignore 的配合
 
 ```yaml
 # 技能级 ignore: true
@@ -902,7 +1115,7 @@ CognitiveSkill 支持技能级 `ignore` 属性：
    - 若技能 `ignore: true`：检查是否能生成必需输出
    - 若技能 `ignore: false`：抛出异常
 
-### 7.5 成功状态定义（含 foreach）
+### 8.5 成功状态定义（含 foreach）
 
 当 CognitiveSkill 包含 `foreach` 时：
 
@@ -915,14 +1128,14 @@ CognitiveSkill 支持技能级 `ignore` 属性：
 
 ---
 
-## 8. 完整示例
+## 9. 完整示例
 
-### 8.1 结果优化器（cognitive_result_optimizer）
+### 9.1 结果优化器（cognitive_result_optimizer）
 
 ~~~markdown
 # skill: cognitive_result_optimizer
 
-**version**: 3.0.0
+**version**: 3.1.0
 **type**: CognitiveSkill
 
 ## description
@@ -943,11 +1156,7 @@ results:
   type: array
   required: true
   description: 待优化的数组结果
-  items:
-    content:
-      type: string
-    score:
-      type: number
+  items: Evidence
 ```
 
 ## internal_flow
@@ -991,18 +1200,21 @@ results:
 
 ```yaml
 summary:
-  type: string
+  type: Answer
   required: true
   description: 优化后的结果文本
+  traits:
+    - emptiable
+  semantic_role: summary
 ```
 ~~~
 
-### 8.2 多源对比器（cognitive_compare）
+### 9.2 多源对比器（cognitive_compare）
 
 ~~~markdown
 # skill: cognitive_compare
 
-**version**: 3.0.0
+**version**: 3.1.0
 **type**: CognitiveSkill
 
 ## description
@@ -1022,13 +1234,7 @@ sources:
   type: array
   required: true
   description: 多个数据源
-  items:
-    source_name:
-      type: string
-    data:
-      type: array
-      items:
-        type: object
+  items: Document
 ```
 
 ## internal_flow
@@ -1065,31 +1271,21 @@ sources:
 
 ```yaml
 report:
-  type: object
+  type: Report
   required: true
   description: 对比分析报告
-  similarities:
-    type: array
-    description: 相似点列表
-    items:
-      type: string
-  differences:
-    type: array
-    description: 差异点列表
-    items:
-      type: string
-  conclusion:
-    type: string
-    description: 总结结论
+  traits:
+    - emptiable
+  semantic_role: summary
 ```
 ~~~
 
-### 8.3 深度分析器（cognitive_analysis）
+### 9.3 深度分析器（cognitive_analysis）
 
 ~~~markdown
 # skill: cognitive_analysis
 
-**version**: 3.0.0
+**version**: 3.3.0
 **type**: CognitiveSkill
 
 ## description
@@ -1106,11 +1302,11 @@ report:
 
 ```yaml
 question:
-  type: string
+  type: Query
   required: true
   description: 待分析的问题
 context:
-  type: string
+  type: Query.constraints
   required: false
   description: 背景上下文
 ```
@@ -1143,7 +1339,7 @@ context:
     - type: select
       capability: reasoning
       input: evidence
-      as: analysis
+      as: reasoning_result
   else:
     # 证据不足：补充搜索后推理
     - type: select
@@ -1158,36 +1354,46 @@ context:
     - type: select
       capability: reasoning
       input: all_evidence
-      as: analysis
+      as: reasoning_result
+
+# 步骤4：提取输出字段
+# reasoning skill 输出 {conclusion, reasoning_chain, confidence}
+# 按 output_schema 映射到 analysis 和 confidence
+- type: assign
+  from: reasoning_result.conclusion
+  to: analysis
+
+- type: assign
+  from: reasoning_result.confidence
+  to: confidence
 ```
 
 ## output_schema
 
 ```yaml
 analysis:
-  type: object
+  type: Analysis
   required: true
   description: 分析结果
-  conclusion:
-    type: string
-    description: 结论
-  reasoning_chain:
-    type: array
-    description: 推理链
-    items:
-      type: string
-  confidence:
-    type: number
-    description: 置信度
+  traits:
+    - emptiable
+  semantic_role: summary
+confidence:
+  type: Score
+  required: false
+  description: 分析置信度
+  traits:
+    - comparable
+    - scorable
 ```
 ~~~
 
-### 8.4 带 fallback 的聚类器
+### 9.4 带 fallback 的聚类器
 
 ~~~markdown
 # skill: cognitive_clustering
 
-**version**: 3.0.0
+**version**: 3.1.0
 **ignore**: true
 **type**: CognitiveSkill
 
@@ -1208,8 +1414,7 @@ data:
   type: array
   required: true
   description: 待聚类的数据
-  items:
-    type: object
+  items: Entity
 ```
 
 ## internal_flow
@@ -1239,22 +1444,18 @@ clusters:
   type: array
   required: true
   description: 聚类结果
-  items:
-    cluster_id:
-      type: number
-    members:
-      type: array
-      items:
-        type: object
+  items: Fact
+  traits:
+    - countable
 ```
 ~~~
 
-### 8.5 多文档分析器（cognitive_multi_doc_analyzer）— 使用 foreach
+### 9.5 多文档分析器（cognitive_multi_doc_analyzer）— 使用 foreach
 
 ~~~markdown
 # skill: cognitive_multi_doc_analyzer
 
-**version**: 3.0.0
+**version**: 3.1.0
 **timeout**: 60000
 **ignore**: true
 **type**: CognitiveSkill
@@ -1277,16 +1478,7 @@ documents:
   type: array
   required: true
   description: 待分析的文档列表
-  items:
-    title:
-      type: string
-      description: 文档标题
-    content:
-      type: string
-      description: 文档内容
-    source:
-      type: string
-      description: 文档来源
+  items: Document
 ```
 
 ## internal_flow
@@ -1337,42 +1529,26 @@ summaries:
   type: array
   required: true
   description: 各文档的摘要列表
-  items:
-    title:
-      type: string
-      description: 文档标题
-    summary:
-      type: string
-      description: 文档摘要
-    key_points:
-      type: array
-      description: 关键要点
-      items:
-        type: string
+  items: Answer
+  traits:
+    - countable
+    - emptiable
 final_report:
-  type: object
+  type: Report
   required: true
   description: 综合分析报告
-  overview:
-    type: string
-    description: 总体概述
-  themes:
-    type: array
-    description: 主题列表
-    items:
-      type: string
-  conclusion:
-    type: string
-    description: 结论
+  traits:
+    - emptiable
+  semantic_role: summary
 ```
 ~~~
 
-### 8.6 问题分解求解器（cognitive_decompose_solver）— foreach 高级用法
+### 9.6 问题分解求解器（cognitive_decompose_solver）— foreach 高级用法
 
 ~~~markdown
 # skill: cognitive_decompose_solver
 
-**version**: 3.0.0
+**version**: 3.1.0
 **timeout**: 120000
 **type**: CognitiveSkill
 
@@ -1390,11 +1566,11 @@ final_report:
 
 ```yaml
 question:
-  type: string
+  type: Query
   required: true
   description: 待解答的复杂问题
 context:
-  type: string
+  type: Query.constraints
   required: false
   description: 问题背景上下文
 ```
@@ -1446,35 +1622,22 @@ context:
 
 ```yaml
 aspects:
-  type: object
+  type: Reasoning
   required: true
   description: 问题分解结果
-  sub_questions:
-    type: array
-    description: 子问题列表
-    items:
-      question:
-        type: string
-      complexity:
-        type: number
 all_evidence:
   type: array
   required: true
   description: 各子问题的证据
-  items:
-    type: object
+  items: Evidence
+  traits:
+    - countable
 final_answer:
-  type: object
+  type: Conclusion
   required: true
   description: 最终答案
-  answer:
-    type: string
-    description: 综合答案
-  reasoning:
-    type: string
-    description: 推理过程
-  confidence:
-    type: number
-    description: 置信度
+  traits:
+    - emptiable
+  semantic_role: summary
 ```
 ~~~
