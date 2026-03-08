@@ -97,6 +97,8 @@ summary:
     type: number
 ```
 
+> **重要说明**：此规则适用于 AtomicSkill 的 `## input_schema` 和 `## output_schema` 声明。对于 tool 步骤中的 `output_schema`，支持泛型声明（可只声明 `type: object` 而不平铺子字段），详见 [工具调用说明](#441-tool-步骤)。
+
 
 ### 2.3 声明校验规则
 
@@ -927,6 +929,16 @@ Tool 调用格式说明
 
   2. 输出声明（设计时）：补充声明 Tool 的输出结构
      →  output_schema
+
+> **泛型声明支持**：Tool 层的 `output_schema` 支持泛型声明。对于动态结构的输出（如 HTTP 响应头、JSON 提取结果等），可以只声明类型而不平铺子字段：
+> ```yaml
+> output_schema:
+>   headers:
+>     type: object  # 泛型声明，不平铺子字段
+>   data:
+>     type: object  # 泛型声明，后续可通过 field.name 访问
+> ```
+> 这与 AtomicSkill 的 `## input_schema` 和 `## output_schema` 不同，后者必须平铺子字段以确保类型安全。
 
 ##### 输入参数绑定
 
