@@ -42,6 +42,10 @@ Aegis 技能分为以下类型：
 - 内部控制流（internal_flow）— 决策逻辑和能力编排
 - 输出定义（output_schema）— 决策结果和处理后的数据
 
+> **变量引用差异**：
+> - **AtomicSkill**：使用步骤名前缀 `{{stepName.field}}` 引用步骤输出
+> - **CognitiveSkill**：使用语义角色映射，节点输出通过 `as`/`to`/`collect` 映射后直接通过变量名引用（如 `{{variable}}`）
+
 > **设计原则**：AtomicSkill 专注于数据处理，包含 UI；CognitiveSkill 专注于复杂决策和动态编排，通过 internal_flow 实现运行时的条件判断和能力选择。技能的串联和编排由 Agent 层负责，DSL 层只需关注单个技能的定义。
 
 
@@ -678,7 +682,6 @@ departments:
 | 规则           | 说明                            |
 | ------------ | ----------------------------- |
 | 必须指定 items   | `array` 类型必须通过 `items` 指定元素类型 |
-| items 使用语义类型 | `items` 的值必须是已注册的语义类型         |
 | 支持嵌套         | 元素类型可以是另一个数组或语义类型             |
 
 > **关于泛型操作**：AtomicSkill 的 `input_schema` 和 `output_schema` 不支持泛型数组（即不声明 `items` 的数组）。如需实现泛型数组操作（如通用过滤、排序、聚合），应通过 Tool 层实现。Tool 内部可以是泛型的，但 AtomicSkill 边界的语义类型必须明确。
