@@ -27,18 +27,7 @@
 - **支持审计日志**：建议在业务逻辑中记录关键业务操作的审计日志
 
 ### 1.2 文件结构
-
-| 章节                      | 必需  | 说明                 |
-| ----------------------- | --- | ------------------ |
-| `# skill: <id>`         | 是   | 技能唯一标识符            |
-| `**version**`           | 是   | 技能版本号，默认 `1.0.0`   |
-| `**ignore**`            | 否   | 技能级异常处理，默认 `false` |
-| `**type**: AtomicSkill` | 是   | 技能类型（可省略，为默认值）     |
-| `## description`        | 否   | 技能描述               |
-| `## capabilityTags`     | 否   | 能力关键词列表，用于技能路由和匹配 |
-| `## input_schema`       | 是   | 输入参数结构定义           |
-| `## output_schema`      | 是   | 输出参数结构定义           |
-| `## steps`              | 是   | 执行步骤列表             |
+> 见总章（[[README.md]])中的1.4 技能文件顶层章节。
 
 ---
 
@@ -1217,9 +1206,9 @@ args:
     amount: "{{total_amount}}"
 output_schema:
   affectedRows:
-    type: integer
+    type: number
   generatedKey:
-    type: integer
+    type: number
 ```
 
 ### step: log_order_created

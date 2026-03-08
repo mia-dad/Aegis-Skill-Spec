@@ -143,7 +143,7 @@ Aegis 技能分为以下类型：
 | `**debug**:<true\|false>`   | 否   | 该技能是否开启debug函数调试功能,默认不开启false            |
 | `## description`            | 是   | 技能描述文本                                   |
 | `## capabilityTags`         | 是   | 能力关键词列表，用于技能路由和匹配                        |
-| `## input_schema`           | 否   | 输入参数结构定义（YAML 格式）                        |
+| `## input_schema`           | 是   | 输入参数结构定义（YAML 格式）                        |
 | `## output_schema`          | 是   | 输出参数结构定义（YAML 格式，平铺字段定义）                 |
 | `## steps`                  | 是   | 执行步骤列表（至少一个）                             |
 | `## ui`                     | 是   | UI展示语义定义                                 |
@@ -602,18 +602,18 @@ api_endpoint: "https://api.weather.com/forecast"
 api_endpoint: "http://internal-service/data"
 ```
 
-##### 针对该类型系统职责 vs Tool 职责
+##### 针对该类型DSL系统职责 vs Tool 职责
 
-| 职责 | 系统 | Tool |
-|------|:----:|:----:|
-| URI 格式校验 | ✓ | |
-| 协议合法性检查 | ✓ | |
-| 相对路径解析 | ✓ | |
-| 资源实际访问 | | ✓ |
-| 内容读取/解析 | | ✓ |
-| 错误处理 | | ✓ |
+| 职责       | DSL系统 | Tool |
+| -------- | :---: | :--: |
+| URI 格式校验 |   ✓   |      |
+| 协议合法性检查  |   ✓   |      |
+| 相对路径解析   |   ✓   |      |
+| 资源实际访问   |       |  ✓   |
+| 内容读取/解析  |       |  ✓   |
+| 错误处理     |       |  ✓   |
 
-> **设计原则**：`resource` 是声明式的资源引用，系统只做格式校验，不做运行时访问。相关的Tool 接收到的是解析后的资源路径，由相关的 Tool 决定如何访问和处理资源内容。
+> **设计原则**：`resource` 是声明式的资源引用，dsl系统只做格式校验，不做运行时访问。相关的Tool 接收到的是解析后的资源路径，由相关的 Tool 决定如何访问和处理资源内容。
 
 
 #### 2.2.3 数组类型与 items
@@ -1978,7 +1978,7 @@ output_schema:
     type: object
     description: 第一个元素
     id:
-      type: integer
+      type: number
       description: 商品ID
     name:
       type: string
@@ -2269,23 +2269,23 @@ output_schema:
 
 **输入参数：**
 
-| 参数 | 类型 | 必需 | 默认值 | 说明 |
-|------|------|:----:|:------:|------|
-| `url` | string | 是 | - | 请求 URL（支持 http:// 和 https://） |
-| `method` | string | 否 | `GET` | HTTP 方法（`GET` 或 `POST`） |
-| `headers` | object | 否 | - | 请求头（如 `Authorization`、`Content-Type`） |
-| `query` | object | 否 | - | 查询参数（自动拼接到 URL） |
-| `body` | object | 否 | - | 请求体（POST 时使用，自动序列化为 JSON） |
-| `timeout` | integer | 否 | `30000` | 超时时间（毫秒，范围 100-300000） |
+| 参数        | 类型     | 必需  |   默认值   | 说明                                    |
+| --------- | ------ | :-: | :-----: | ------------------------------------- |
+| `url`     | string |  是  |    -    | 请求 URL（支持 http:// 和 https://）         |
+| `method`  | string |  否  |  `GET`  | HTTP 方法（`GET` 或 `POST`）               |
+| `headers` | object |  否  |    -    | 请求头（如 `Authorization`、`Content-Type`） |
+| `query`   | object |  否  |    -    | 查询参数（自动拼接到 URL）                       |
+| `body`    | object |  否  |    -    | 请求体（POST 时使用，自动序列化为 JSON）             |
+| `timeout` | number |  否  | `30000` | 超时时间（毫秒，范围 100-300000）                |
 
 ---
 
 **输出：**
 
-| 字段 | 类型 | 说明 |
+| 字段 | 类型            | 说明 |
 |------|------|------|
-| `statusCode` | integer | HTTP 状态码（如 200、404、500） |
-| `headers` | object | 响应头（动态字段，如需使用特定响应头可单独声明） |
+| `statusCode` | number        | HTTP 状态码（如 200、404、500） |
+| `headers` | object        | 响应头（动态字段，如需使用特定响应头可单独声明） |
 | `body` | string/object | 响应体（原始字符串） |
 
 > **注意**：`headers` 字段是动态的，包含各种 HTTP 响应头（如 `content-type`、`content-length` 等）。在 `output_schema` 中：
@@ -2294,7 +2294,7 @@ output_schema:
 > ```yaml
 > output_schema:
 >   statusCode:
->     type: integer
+>     type: number
 >   headers:
 >     type: object
 >     content-type:
@@ -2324,7 +2324,7 @@ args:
     Authorization: "Bearer {{token}}"
 output_schema:
   statusCode:
-    type: integer
+    type: number
   headers:
     type: object
   body:
@@ -2362,7 +2362,7 @@ args:
     content: "{{content}}"
 output_schema:
   statusCode:
-    type: integer
+    type: number
   body:
     type: string
 ```
@@ -2386,7 +2386,7 @@ args:
     offset: "0"
 output_schema:
   statusCode:
-    type: integer
+    type: number
   body:
     type: string
 ```
@@ -2406,7 +2406,7 @@ args:
   method: "GET"
 output_schema:
   statusCode:
-    type: integer
+    type: number
   body:
     type: string
 ```
@@ -2581,7 +2581,7 @@ args:
   method: "GET"
 output_schema:
   statusCode:
-    type: integer
+    type: number
   body:
     type: string
 ```
@@ -2900,10 +2900,10 @@ output_schema:
 
 **输出结构：**
 
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|:----:|------|
-| `affectedRows` | integer | 是 | 影响行数（通常为 1） |
-| `generatedKey` | integer | 否 | 自增主键ID（如果表有自增列） |
+| 字段             | 类型     | 必需  | 说明              |
+| -------------- | ------ | :-: | --------------- |
+| `affectedRows` | number |  是  | 影响行数（通常为 1）     |
+| `generatedKey` | number |  否  | 自增主键ID（如果表有自增列） |
 
 ---
 
@@ -2927,10 +2927,10 @@ args:
 
 output_schema:
   affectedRows:
-    type: integer
+    type: number
     description: 插入的行数
   generatedKey:
-    type: integer
+    type: number
     description: 新订单的ID
     optional: true
 ```
@@ -3102,7 +3102,7 @@ output_schema:
     type: object
     description: 用户信息
     id:
-      type: integer
+      type: number
       description: 用户ID
     username:
       type: string
@@ -3131,7 +3131,7 @@ output_schema:
     description: 订单列表
     items:
       id:
-        type: integer
+        type: number
       customer_name:
         type: string
       total:
@@ -3155,7 +3155,7 @@ output_schema:
     type: array
     items:
       id:
-        type: integer
+        type: number
       amount:
         type: number
 
@@ -3200,7 +3200,7 @@ output_schema:
     description: 订单详情（包含商品明细）
     items:
       order_id:
-        type: integer
+        type: number
       total_amount:
         type: number
       customer_name:
@@ -3210,7 +3210,7 @@ output_schema:
       product_name:
         type: string
       quantity:
-        type: integer
+        type: number
 ```
 
 ---

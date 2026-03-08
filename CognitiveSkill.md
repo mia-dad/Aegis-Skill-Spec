@@ -60,59 +60,12 @@ ExecutionPlan（执行计划）
 - AtomicSkill 是最小执行单元
 
 ### 1.4 文件结构
+见总章（[[README.md]])中的1.4 技能文件顶层章节的CognitiveSkill 章节。
 
-| 章节                         | 必需  | 说明                                                               |
-| -------------------------- | --- | ---------------------------------------------------------------- |
-| `# skill: <id>`            | 是   | 技能唯一标识符，建议以 `cognitive_` 前缀                                      |
-| `**version**`              | 否   | 技能版本号，默认 `1.0.0`                                                 |
-| `**ignore**`               | 否   | 技能级异常处理，默认 `false`                                               |
-| `**timeout**`              | 否   | 执行超时时间（毫秒），默认由平台配置                                               |
-| `**type**: CognitiveSkill` | 是   | 技能类型，必须显式声明                                                      |
-| `**mode**`                 | 是   | Agent 运行模式（Direct/CoT/ReAct/Decompose/Retrieve/Compare/Generate） |
-| `## description`           | 是   | 技能描述                                                             |
-| `## capabilityTags`        | 否   | 能力关键词列表                                                          |
-| `## input_schema`          | 是   | 输入参数结构定义                                                         |
-| `## internal_flow`         | 是   | 内部执行流程定义                                                         |
-| `## output_schema`         | 是   | 输出参数结构定义                                                         |
 
 ### 1.5 文件骨架
+见总章（[[README.md]])中的CognitiveSkill 文件骨架章节
 
-~~~markdown
-# skill: cognitive_reasoning<name>
-
-**version**: 3.1.0
-**timeout**: 30000
-**type**: CognitiveSkill
-**mode**: CoT                         # 声明模式
-
-
-## description
-
-<技能描述>
-
-## capabilityTags
-
-- <能力关键词1>
-- <能力关键词2>
-
-## input_schema
-
-```yaml
-<输入参数定义>
-```
-
-## internal_flow
-
-```yaml
-<内部流程节点列表>
-```
-
-## output_schema
-
-```yaml
-<输出参数定义>
-```
-~~~
 
 ### 1.6 与 Strategy 的对应关系
 
