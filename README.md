@@ -3298,6 +3298,7 @@ output_schema:
 - `break`
 - `tool`
 - `when`
+- `expr`
 - `ignore`
 - `input`
 - `output`
