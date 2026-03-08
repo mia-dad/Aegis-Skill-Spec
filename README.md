@@ -140,9 +140,9 @@ Aegis 技能分为以下类型：
 | `**version**: <版本号>`        | 否   | 技能版本号，遵循语义化版本（如 `2.0.0`）。未提供时默认为 `1.0.0` |
 | `**ignore**: <true\|false>` | 否   | 技能级异常处理，默认为 `false`                      |
 | `**type**: AtomicSkill`     | 是   | 技能类型，AtomicSkill 可省略（默认值）                |
-| **debug**: <true\|false>    | 否   | 该技能是否开启debug函数调试功能,默认不开启false            |
-| `## description`            | 否   | 技能描述文本                                   |
-| `## capabilityTags`         | 否   | 能力关键词列表，用于技能路由和匹配                        |
+| `**debug**:<true\|false>`   | 否   | 该技能是否开启debug函数调试功能,默认不开启false            |
+| `## description`            | 是   | 技能描述文本                                   |
+| `## capabilityTags`         | 是   | 能力关键词列表，用于技能路由和匹配                        |
 | `## input_schema`           | 否   | 输入参数结构定义（YAML 格式）                        |
 | `## output_schema`          | 是   | 输出参数结构定义（YAML 格式，平铺字段定义）                 |
 | `## steps`                  | 是   | 执行步骤列表（至少一个）                             |
@@ -161,7 +161,7 @@ Aegis 技能分为以下类型：
 | `**timeout**: <毫秒数>`        | 否   | 执行超时时间（毫秒），默认由平台配置                                               |
 | `**type**: CognitiveSkill`  | 是   | 技能类型，必须显式声明                                                      |
 | `**mode**: <模式名>`           | 是   | Agent 运行模式（Direct/CoT/ReAct/Decompose/Retrieve/Compare/Generate） |
-| **debug**: <true\|false>    | 否   | 该技能是否开启debug函数调试功能,默认不开启false                                    |
+| `**debug**:<true\|false>`   | 否   | 该技能是否开启debug函数调试功能,默认不开启false                                    |
 | `## description`            | 否   | 技能描述文本                                                           |
 | `## capabilityTags`         | 否   | 能力关键词列表，用于技能路由和匹配                                                |
 | `## input_schema`           | 是   | 输入参数结构定义（YAML 格式）                                                |
@@ -1875,9 +1875,12 @@ output_schema:
 
 | 语法 | 说明 | 示例 |
 |------|------|------|
+| `$` | JSON 根节点，表示整个 JSON 结构 | `$` |
 | `field` | 访问对象的字段 | `name`、`user.age`、`data.title` |
 | `field[index]` | 访问数组的指定索引元素 | `items[0]`、`users[2]` |
 | `field[*]` | 访问数组的所有元素（投影） | `items[*]`、`regions[*]` |
+
+> **注意**：`$` 代表 JSON 结构的根节点，用于提取整个 JSON 对象或数组。
 
 ---
 
