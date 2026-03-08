@@ -2282,8 +2282,24 @@ output_schema:
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `statusCode` | integer | HTTP 状态码（如 200、404、500） |
-| `headers` | object | 响应头（JSON 字符串或对象） |
+| `headers` | object | 响应头（动态字段，如需使用特定响应头可单独声明） |
 | `body` | string/object | 响应体（原始字符串） |
+
+> **注意**：`headers` 字段是动态的，包含各种 HTTP 响应头（如 `content-type`、`content-length` 等）。在 `output_schema` 中：
+> - 如果不需要访问响应头，可以不声明 `headers` 字段
+> - 如果需要访问特定响应头，可以只声明需要的字段，如：
+> ```yaml
+> output_schema:
+>   statusCode:
+>     type: integer
+>   headers:
+>     type: object
+>     content-type:
+>       type: string
+>       description: 内容类型
+>   body:
+>     type: string
+> ```
 
 ---
 
