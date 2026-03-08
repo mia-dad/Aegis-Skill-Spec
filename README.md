@@ -414,14 +414,21 @@ AtomicSkill 的 `output_schema` 支持可选的 `mapping` 字段，用于将步�
 
 **映射规则：**
 
-| mapping 设置 | 行为                   | 示例                                  |
-| ---------- | -------------------- | ----------------------------------- |
-| **必须设置**   | 使用 mapping 指定的步骤输出引用 | `summary: mapping: {{step1.value}}` |
+| 技能类型 | mapping 设置 | 行为 | 示例 |
+|----------|-------------|------|------|
+| **AtomicSkill** | **必须设置** | 使用 mapping 指定的步骤输出引用 | `summary: mapping: {{step1.value}}` |
+| **CognitiveSkill** | 可选 | 引用上下文中的变量名 | `answer: mapping: {{reasoning_result}}` |
+
+> **CognitiveSkill 的 mapping 限制**：
+> - 只支持直接引用上下文变量，如 `{{variable_name}}`
+> - 不支持字段嵌套（如 `{{variable.field}}`）
+> - 不支持表达式运算（如拼接、算术运算等）
+> - 如果不设置 mapping，系统尝试按字段名从上下文中自动匹配
 
 **使用示例：**
 
 
-**场景1： mapping用法**
+**场景1： AtomicSkill 的 mapping（步骤输出引用）**
 
 ~~~markdown
 ## output_schema
@@ -445,7 +452,7 @@ final_report:
 
 系统直接使用 `mapping` 中指定的 `{{generate_summary.value}}` 作为 `final_report` 字段的值。
 
-**场景2：引用步骤输出的具体字段**
+**场景2： AtomicSkill - 引用步骤输出的具体字段**
 
 ~~~markdown
 ## output_schema
@@ -477,12 +484,48 @@ output_schema:
 ```
 ~~~
 
+**场景3： CognitiveSkill - 引用上下文变量**
+
+~~~markdown
+# skill: cognitive_reasoning
+
+**type**: CognitiveSkill
+**mode**: CoT
+
+## output_schema
+
+```yaml
+answer:
+  type: string
+  description: 最终答案
+  mapping: {{reasoning_result}}    # 引用上下文中的变量
+```
+
+## internal_flow
+
+```yaml
+- type: select
+  capability: reasoning
+  output:
+    Result: reasoning_result      # 输出到上下文
+```
+~~~
+
+系统从上下文中获取 `reasoning_result` 变量的值作为 `answer` 字段的值。
+
 **注意事项：**
 
+**AtomicSkill 的 mapping 规则：**
 1. **mapping 引用的必须是步骤输出**：如 `{{stepName.value}}` 或 `{{stepName.field}}`
 2. **mapping 引用不能嵌套**：不支持 `{{step1.value}} + {{step2.value}}` 这样的表达式
 3. **循环引用检测**：系统会检测并拒绝循环引用的 mapping
 4. **类型兼容性**：mapping 引用的值类型必须与字段声明的 `type` 兼容
+
+**CognitiveSkill 的 mapping 规则：**
+1. **只支持直接引用上下文变量**：如 `{{variable_name}}`
+2. **不支持字段嵌套**：不支持 `{{variable.field}}` 这样的嵌套引用
+3. **不支持表达式运算**：不支持拼接、算术运算等表达式
+4. **自动匹配机制**：如果不设置 mapping，系统尝试按字段名从上下文中自动匹配
 
 ---
 

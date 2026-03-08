@@ -296,12 +296,12 @@ select.input.Query: question
 
 **fallback 规则**：
 
-| 规则 | 说明 |
-|------|------|
-| 触发条件 | 主能力执行失败时触发 |
-| 成功继续 | fallback 成功后继续执行后续节点 |
-| 失败抛异常 | fallback 也失败则抛出异常 |
-| 嵌套限制 | fallback 最多两层嵌套 |
+| 规则    | 说明                              |
+| ----- | ------------------------------- |
+| 触发条件  | 主能力执行失败时触发                      |
+| 成功继续  | fallback 成功后继续执行后续节点            |
+| 失败抛异常 | fallback 也失败则抛出异常               |
+| 嵌套限制  | fallback 最多两层嵌套,防止复杂 fallback 树 |
 
 **两层 fallback 示例**：
 
@@ -1223,7 +1223,9 @@ internal_flow 执行完成
         ↓
 遍历 output_schema 中声明的每个字段
         ↓
-从 ExecutionContext 中按字段名提取值
+检查是否设置了 mapping
+        ├─ 是 → 使用 mapping 指定的变量名提取值
+        └─ 否 → 按字段名从 context 中提取值
         ↓
 校验 required / 类型
         ↓
@@ -1234,11 +1236,56 @@ internal_flow 执行完成
 
 | 规则 | 说明 |
 |------|------|
+| mapping 优先 | 如果设置了 `mapping`，使用 mapping 指定的变量名 |
+| 字段名匹配 | 未设置 mapping 时，按字段名从 context 中提取 |
+| 仅支持直接引用 | mapping 只支持 `{{variable_name}}`，不支持嵌套或表达式 |
+
+**mapping 语法**：
+
+```yaml
+<field_name>:
+  type: <type>
+  mapping: {{variable_name}}  # 可选，指定上下文中的变量名
+```
+
+**限制说明**：
+
+> CognitiveSkill 的 mapping 仅支持**直接变量引用**：
+> - ✅ 支持：`mapping: {{reasoning_result}}`
+> - ❌ 不支持：`mapping: {{variable.field}}`（嵌套引用）
+> - ❌ 不支持：`mapping: {{var1}} + {{var2}}`（表达式运算）
+> - ❌ 不支持：`mapping: {{stepName.field}}`（步骤引用，CognitiveSkill 无步骤概念）
+
+**使用示例**：
+
+```yaml
+# internal_flow
+- type: select
+  capability: reasoning
+  input:
+    Query: question
+  output:
+    Result: reasoning_result    # 存入 context["reasoning_result"]
+
+# output_schema - 方式1：变量名匹配
+reasoning:
+  type: string
+  # 不设置 mapping，系统按字段名查找 context["reasoning"]
+
+# output_schema - 方式2：使用 mapping
+final_answer:
+  type: string
+  mapping: {{reasoning_result}}  # 显式指定变量名
+```
+
+**无 mapping 时的字段名匹配**：
+
+| 规则 | 说明 |
+|------|------|
 | 字段名匹配 | output_schema 中的字段名必须与 context 中的变量名一致 |
 | 显式赋值 | 需要通过 `as` 或 `assign` 将值存入正确的变量名 |
-| 无自动映射 | 系统不会自动推断字段映射关系 |
 
-**错误示例**：
+**错误示例（无 mapping）**：
 
 ```yaml
 # internal_flow 最后一步
@@ -1250,7 +1297,7 @@ internal_flow 执行完成
     Conclusion: reasoning_result    # 存入 context["reasoning_result"]
 
 # output_schema
-analysis:                  # 期望从 context["analysis"] 提取
+analysis:                  # 期望从 context["analysis"] 提取，但实际没有
   type: string
   required: true
 ```
