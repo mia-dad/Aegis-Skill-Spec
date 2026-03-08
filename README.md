@@ -1934,6 +1934,15 @@ output_schema:
   my_data:
     type: object
     description: 提取的数据对象
+    title:
+      type: string
+      description: 标题
+    sub_content:
+      type: string
+      description: 内容
+    sub_pic:
+      type: string
+      description: 图片URL
 ```
 
 ### step: display_data
@@ -1965,6 +1974,12 @@ output_schema:
   first_item:
     type: object
     description: 第一个元素
+    id:
+      type: integer
+      description: 商品ID
+    name:
+      type: string
+      description: 商品名
 ```
 
 ### step: use_item
@@ -1995,6 +2010,8 @@ output_schema:
   names:
     type: array
     description: 所有名称
+    items:
+      type: string
 ```
 
 ### step: use_names
@@ -2027,6 +2044,9 @@ args:
 output_schema:
   data_obj:
     type: object
+    title:
+      type: string
+      description: 标题
 ```
 
 ### step: extract_count
