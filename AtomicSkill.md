@@ -1194,17 +1194,20 @@ output_schema:
 ### step: process_order
 
 **type**: tool
-**tool**: database.insert
+**tool**: db_insert
 
 ```yaml
 args:
+  datasource: order_db
   table: orders
-  data:
+  fields:
     order_id: "{{order_id}}"
     amount: "{{total_amount}}"
 output_schema:
-  inserted:
-    type: boolean
+  affectedRows:
+    type: integer
+  generatedKey:
+    type: integer
 ```
 
 ### step: log_order_created
@@ -1595,13 +1598,17 @@ summary:
 ### step: fetch_sales_data
 
 **type**: tool
-**tool**: database.query
+**tool**: db_select
 
 ```yaml
 args:
-  query: "SELECT region, product, amount FROM sales WHERE region = '{{region}}'"
+  datasource: sales_db
+  query: "SELECT region, product, amount FROM sales WHERE region = ?"
+  params:
+    - "{{region}}"
+
 output_schema:
-  data:
+  result:
     type: array
     description: 查询结果
     items:
@@ -1620,7 +1627,7 @@ output_schema:
 ```template
 {{region}} 地区 {{period}} 销售报表：
 
-{{#for fetch_sales_data.data}}
+{{#for fetch_sales_data.result}}
 区域：{{region}}，商品：{{product}}，销售量：{{amount}}
 {{/for}}
 ```

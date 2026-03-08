@@ -3207,7 +3207,9 @@ output_schema:
 - **Step 名称**：使用动词或动词短语，如 `calculate_total`、`prepare_summary`
 - **相关输入输出变量名称**：使用与业务含义相匹配的名词或动名词以及短语，如 `file`、`summary`、`result`、`report`
 - **输入参数**：使用下划线命名法，如 `order_id`、`unit_price`
-- **工具名称**：使用点号分隔命名空间，如 `database.query`、`search_api`
+- **工具名称**：
+  - 预置工具使用简洁名称，如 `db_select`、`http_request`、`json_select`
+  - 自定义工具使用点号分隔命名空间，如 `crm.search_customer`、`payment.process`
 - **步骤命名**：使用动词或动词短语，如 `calculate_total`、`prepare_summary`，作为变量引用的前缀
 
 ### 4.2 设计原则
