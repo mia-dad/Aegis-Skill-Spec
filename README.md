@@ -1,13 +1,13 @@
 # Aegis Skill DSL 规范说明文档
 
-> **规范版本：3.4.0**
+> **规范版本：3.4.2**
 
 ## 目录
 
 ### 通用规范（本文档）
 - [1. 概述](#1-概述) — 技能分类、文件骨架、type/version 字段
 - [2. 输入输出的声明和定义](#2-输入输出的声明和定义) — 基本类型、语义角色
-- [3. 内置函数](#3-内置函数) — 数组操作函数、函数调用语法
+- [3. 内置函数与工具](#3-内置函数) — 数组操作函数、函数调用语法、内置工具
 - [4. 最佳实践](#4-最佳实践) — 命名规范、设计原则、性能优化
 - [5. 附录](#5-附录) — 保留关键词、修订历史
 
@@ -53,7 +53,7 @@ Aegis 技能分为以下类型：
 **version**: <版本号>
 **ignore**: <true|false>
 **type**: AtomicSkill
-
+**debug**: <true|false>
 ## description
 
 <技能描述>
@@ -101,7 +101,7 @@ Aegis 技能分为以下类型：
 **timeout**: <超时毫秒数>
 **type**: CognitiveSkill
 **mode**: <运行模式>
-
+**debug**: <true|false>
 ## description
 
 <技能描述>
@@ -140,6 +140,7 @@ Aegis 技能分为以下类型：
 | `**version**: <版本号>`        | 否   | 技能版本号，遵循语义化版本（如 `2.0.0`）。未提供时默认为 `1.0.0` |
 | `**ignore**: <true\|false>` | 否   | 技能级异常处理，默认为 `false`                      |
 | `**type**: AtomicSkill`     | 是   | 技能类型，AtomicSkill 可省略（默认值）                |
+| **debug**: <true\|false>    | 否   | 该技能是否开启debug函数调试功能,默认不开启false            |
 | `## description`            | 否   | 技能描述文本                                   |
 | `## capabilityTags`         | 否   | 能力关键词列表，用于技能路由和匹配                        |
 | `## input_schema`           | 否   | 输入参数结构定义（YAML 格式）                        |
@@ -152,19 +153,20 @@ Aegis 技能分为以下类型：
 
 #### CognitiveSkill 章节
 
-| 章节 | 必需 | 说明 |
-|------|------|------|
-| `# skill: <id>` | 是 | 技能唯一标识符，作为一级标题 |
-| `**version**: <版本号>` | 否 | 技能版本号，遵循语义化版本（如 `3.0.0`） |
-| `**ignore**: <true\|false>` | 否 | 技能级异常处理，默认为 `false` |
-| `**timeout**: <毫秒数>` | 否 | 执行超时时间（毫秒），默认由平台配置 |
-| `**type**: CognitiveSkill` | 是 | 技能类型，必须显式声明 |
-| `**mode**: <模式名>` | 是 | Agent 运行模式（Direct/CoT/ReAct/Decompose/Retrieve/Compare/Generate） |
-| `## description` | 否 | 技能描述文本 |
-| `## capabilityTags` | 否 | 能力关键词列表，用于技能路由和匹配 |
-| `## input_schema` | 是 | 输入参数结构定义（YAML 格式） |
-| `## internal_flow` | 是 | 内部控制流定义，包含决策节点序列 |
-| `## output_schema` | 是 | 输出参数结构定义（YAML 格式） |
+| 章节                          | 必需  | 说明                                                               |
+| --------------------------- | --- | ---------------------------------------------------------------- |
+| `# skill: <id>`             | 是   | 技能唯一标识符，作为一级标题                                                   |
+| `**version**: <版本号>`        | 否   | 技能版本号，遵循语义化版本（如 `3.0.0`）                                         |
+| `**ignore**: <true\|false>` | 否   | 技能级异常处理，默认为 `false`                                              |
+| `**timeout**: <毫秒数>`        | 否   | 执行超时时间（毫秒），默认由平台配置                                               |
+| `**type**: CognitiveSkill`  | 是   | 技能类型，必须显式声明                                                      |
+| `**mode**: <模式名>`           | 是   | Agent 运行模式（Direct/CoT/ReAct/Decompose/Retrieve/Compare/Generate） |
+| **debug**: <true\|false>    | 否   | 该技能是否开启debug函数调试功能,默认不开启false                                    |
+| `## description`            | 否   | 技能描述文本                                                           |
+| `## capabilityTags`         | 否   | 能力关键词列表，用于技能路由和匹配                                                |
+| `## input_schema`           | 是   | 输入参数结构定义（YAML 格式）                                                |
+| `## internal_flow`          | 是   | 内部控制流定义，包含决策节点序列                                                 |
+| `## output_schema`          | 是   | 输出参数结构定义（YAML 格式）                                                |
 
 > **注意**：CognitiveSkill **不包含** `## steps` 和 `## ui` 章节。决策逻辑通过 `internal_flow` 定义。
 
@@ -194,7 +196,7 @@ Aegis 技能分为以下类型：
 `version` 字段声明在一级标题 `# skill: <id>` 之后，格式为：
 
 ```markdown
-**version**: 3.4.0
+**version**: 3.4.2
 ```
 
 **用法说明：**
@@ -301,6 +303,57 @@ Aegis 技能分为以下类型：
 
 > **设计说明**：CognitiveSkill 可能包含 `foreach` 循环和多次能力调用，执行时间不可预测。`timeout` 是防止单个技能阻塞整个 Agent 执行的安全阀。
 
+### 1.9 debug 字段（调试模式控制）
+
+`debug` 字段用于控制技能是否启用调试模式，影响 `debug()` 内置函数的执行行为。
+
+**语法：**
+
+```markdown
+**version**: 3.4.2
+**debug**: true
+**type**: AtomicSkill
+```
+
+**用法说明：**
+
+| debug 值 | 行为 |
+|-----------|------|
+| `false`（默认） | `debug()` 函数不执行，不输出任何调试日志 |
+| `true` | `debug()` 函数正常执行，输出调试日志 |
+
+**适用范围：**
+
+- **AtomicSkill**：支持
+- **CognitiveSkill**：支持
+
+**示例：**
+
+~~~markdown
+# skill: data_analysis
+
+**version**: 3.4.2
+**debug**: true
+**type**: AtomicSkill
+
+## description
+数据分析技能，启用调试模式以便排查问题。
+~~~
+
+**使用场景：**
+
+| 场景 | debug 设置 |
+|------|-----------|
+| 生产环境 | `false`（默认，避免性能影响） |
+| 开发测试 | `true`（输出调试信息） |
+| 问题排查 | 临时设置为 `true` 进行调试 |
+
+**性能影响：**
+
+当 `debug: false` 时，`debug()` 函数调用会被完全跳过，不会产生任何性能开销。
+
+> **注意**：`debug()` 函数是 DSL 引擎层的内置函数，用于输出技能调试日志。详见 [3.15 debug 函数](#315-debug-函数)。
+
 ---
 
 
@@ -311,10 +364,10 @@ Aegis 技能分为以下类型：
 
  每个技能都必须有针对输入输出声明定义,声明的目标是针对技能在运行时接收的变量和最终输出的变量,针对不同类型的输入输出配置方式见表如下
 
-| 技能类型                | 输入           | 输出            | 输入说明 | 输出说明                                        |
-| ------------------- | ------------ | ------------- | ---- | ------------------------------------------- |
-| `AtomicSkill`       | input_schema | output_schema |      | ui 仅做为给用户返回逻辑起作用，仅在该`AtomicSkill`为最后一个技能执行时 |
-| `CognitiveSkill`    | input_schema | output_schema |      |                                             |
+| 技能类型             | 输入           | 输出               | 输入说明      | 输出说明                                        |
+| ---------------- | ------------ | ---------------- | --------- | ------------------------------------------- |
+| `AtomicSkill`    | input_schema | output_schema和ui | 必须要有相应的输入 | ui 仅做为给用户返回逻辑起作用，仅在该`AtomicSkill`为最后一个技能执行时 |
+| `CognitiveSkill` | input_schema | output_schema    | 必须要有相应的输入 | 输出有可能是在动态时进行检查.                             |
 
 ### 2.1 声明的结构
 
@@ -339,7 +392,95 @@ Aegis 技能分为以下类型：
 | `options`     | array   | 否   | 枚举选项列表，用于单选/多选                 |
 | `roles`       | array   | 否   | 语义角色，可以多选，描述字段的业务语义类别（详见 2.10） |
 
+---
 
+### 2.1.1 output_schema 的 mapping 映射机制
+
+AtomicSkill 的 `output_schema` 支持可选的 `mapping` 字段，用于将步骤输出映射到最终输出字段。
+
+**基本语法：**
+
+```yaml
+<field_name>:
+  type: <string|number|boolean|datetime|resource|array|object>
+  required: <true|false>
+  description: <字段描述>
+  mapping: <步骤输出引用>    # 必填，指定从哪个步骤输出获取值
+```
+
+**映射规则：**
+
+| mapping 设置 | 行为                   | 示例                                  |
+| ---------- | -------------------- | ----------------------------------- |
+| **必须设置**   | 使用 mapping 指定的步骤输出引用 | `summary: mapping: {{step1.value}}` |
+
+**使用示例：**
+
+
+**场景1： mapping用法**
+
+~~~markdown
+## output_schema
+
+```yaml
+final_report:
+  type: string
+  description: 最终报告
+  mapping: {{generate_summary.value}}
+```
+
+## steps
+
+### step: generate_summary
+**type**: template
+
+```template
+生成的摘要内容
+```
+~~~
+
+系统直接使用 `mapping` 中指定的 `{{generate_summary.value}}` 作为 `final_report` 字段的值。
+
+**场景2：引用步骤输出的具体字段**
+
+~~~markdown
+## output_schema
+
+```yaml
+total:
+  type: number
+  description: 总销售额
+  mapping: {{calculate.total}}
+
+count:
+  type: number
+  description: 记录数量
+  mapping: {{calculate.count}}
+```
+
+## steps
+
+### step: calculate
+**type**: tool
+**tool**: sales_api
+
+```yaml
+output_schema:
+  total:
+    type: number
+  count:
+    type: number
+```
+~~~
+
+**注意事项：**
+
+1. **mapping 引用的必须是步骤输出**：如 `{{stepName.value}}` 或 `{{stepName.field}}`
+2. **mapping 引用不能嵌套**：不支持 `{{step1.value}} + {{step2.value}}` 这样的表达式
+3. **循环引用检测**：系统会检测并拒绝循环引用的 mapping
+4. **类型兼容性**：mapping 引用的值类型必须与字段声明的 `type` 兼容
+
+---
 
 ### 2.2 type的基本类型
 | 类型         | 说明             | 示例值                                                           |
@@ -571,6 +712,27 @@ records:
       type: string
     value:
       type: number
+```
+
+##### 数组属性
+
+`array` 类型提供以下内置属性：
+
+| 属性        | 类型     | 说明     |
+| --------- | ------ | ------ |
+| `.length` | number | 数组元素个数 |
+
+**使用示例：**
+
+```yaml
+### step: process_items
+**type**: template
+
+template: |
+  共 {{previous_step.items.length}} 个项目
+  {{#when previous_step.items.length > 0}}
+  开始处理...
+  {{/when}}
 ```
 
 > **唯一例外**：当 `array` 配合 `options` 实现多选时，不需要定义 `items`，因为 `options` 已隐含元素为字符串类型。
@@ -966,7 +1128,7 @@ answer:
 
 
 
-## 3. 内置函数
+## 3. 内置函数与工具
 
 Aegis 提供一组内置函数用于处理常见的数据操作。内置函数可以在模板表达式中直接调用，无需通过 step 配置。
 
@@ -991,16 +1153,38 @@ namespace::function(arg1, arg2, ..., [ignore: true])
 **调用示例**：
 
 ```yaml
-# 在 input 中使用函数
-input:
+# 在 arg(工具调用) 中使用函数
+args:
   flat_data: array::flatten({{nested_array}}, 1)
   unique_items: array::unique({{items}})
   sorted_list: array::sort({{scores}}, "value", "desc")
 ```
 
 ```template
-# 在模板中使用函数
+# 在 template 模板中使用函数
 处理后的数据：{{array::flatten({{data}}, 2)}}
+```
+
+```prompt
+# 在 prompt 模板中使用函数（动态生成提示词）
+你是一位专业的数据分析师。
+
+{{#when exists(additional_context)}}
+补充背景信息：{{additional_context}}
+请基于以上背景信息进行分析。
+{{/when}}
+
+{{#when empty(search_results)}}
+警告：未找到相关搜索结果。请基于现有知识库进行分析。
+{{:else}}
+已找到 {{array::count({{search_results}})}} 条搜索结果：
+{{#for search_results}}
+- {{title}}：{{snippet}}
+{{/for}}
+请基于以上搜索结果进行分析。
+{{/when}}
+
+请给出分析结论。
 ```
 
 #### 命名空间省略规则
@@ -1493,6 +1677,1527 @@ when:
 
 > 未来版本可能扩展更多命名空间，如 `string`（字符串操作）、`math`（数学运算）等。
 
+### 3.15 debug 函数
+
+`debug()` 是 DSL 引擎层的内置调试函数，用于输出技能调试日志。该函数的执行行为受技能的 `**debug**` 属性控制。
+
+**函数签名**：
+
+```
+debug(message: string) → null
+```
+
+**参数**：
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `message` | string | 是 | 要输出的调试消息，支持模板变量 |
+
+**返回类型**：`null` — 该函数不返回任何值
+
+**执行行为控制：**
+
+`debug()` 函数的执行行为由技能顶层的 `**debug**` 属性控制：
+
+| **debug** 属性 | debug() 函数行为 |
+|---------------|------------------|
+| `false`（默认） | **不执行**，不输出任何日志 |
+| `true` | **执行**，输出调试日志 |
+
+**使用示例：**
+
+```template
+# 在 template 步骤中使用
+{{debug("当前处理到第 " + {{_index}} + " 条记录")}}
+{{debug("搜索结果: " + {{results}})}}
+```
+
+```prompt
+# 在 prompt 步骤中使用
+请分析以下数据：
+{{debug("输入数据: " + {{input_data}})}}
+
+分析结果...
+{{debug("分析完成，输出: " + {{output}})}}
+```
+
+**调试日志输出格式：**
+
+当 `**debug**: true` 时，调试日志会输出到技能调试日志系统中，格式如下：
+
+```
+[DEBUG] [技能ID] [步骤名称] <消息内容>
+```
+
+**示例输出：**
+
+```
+[DEBUG] [data_analysis] [process_data] 当前处理到第 5 条记录
+[DEBUG] [data_analysis] [process_data] 搜索结果: [{id: 1, name: "测试"}, ...]
+```
+
+**与 log 工具的区别：**
+
+| 特性 | debug() 函数 | log 工具 |
+|------|-------------|----------|
+| 控制方式 | `**debug**` 属性 | 无条件执行 |
+| 默认行为 | 不执行（`debug: false`） | 总是执行 |
+| 用途 | 开发调试 | 业务审计 |
+| 日志级别 | DEBUG | info/warn/error |
+| 适用类型 | AtomicSkill、CognitiveSkill | 仅 AtomicSkill |
+| 输出位置 | 技能调试日志 | 审计日志系统 |
+
+**最佳实践：**
+
+| 实践 | 说明 |
+|------|------|
+| 生产环境设置 `debug: false` | 避免生产环境输出调试信息 |
+| 开发时设置 `debug: true` | 便于排查问题 |
+| 调试信息要有意义 | 输出关键变量和状态信息 |
+| 避免敏感信息 | 不要在 debug 中输出密码、密钥等敏感数据 |
+| 与 log 工具配合 | debug 用于开发调试，log 用于业务审计 |
+
+**完整示例：**
+
+~~~markdown
+# skill: data_processor
+
+**version**: 3.4.2
+**debug**: true
+**type**: AtomicSkill
+
+## description
+数据处理技能，启用调试模式。
+
+## input_schema
+
+```yaml
+data:
+  type: array
+  required: true
+  description: 待处理的数据
+  items:
+    id:
+      type: string
+    value:
+      type: number
+```
+
+## output_schema
+
+```yaml
+result:
+  type: number
+  description: 处理结果
+```
+
+## steps
+
+### step: debug_input
+
+**type**: template
+
+```template
+{{debug("输入数据数量: " + array::count({{data}}))}}
+{{debug("第一条数据: " + {{data[0]}})}}
+输入数据已接收
+```
+
+### step: process
+
+**type**: tool
+**tool**: data_processor
+
+```yaml
+args:
+  input: "{{data}}"
+output_schema:
+  result:
+    type: number
+```
+
+### step: debug_output
+
+**type**: template
+
+```template
+{{debug("处理结果: " + {{process.value}})}}
+处理完成
+```
+~~~
+
+**性能说明：**
+
+- 当 `**debug**: false` 时，`debug()` 函数调用会被完全优化掉，不产生任何执行开销
+- 当 `**debug**: true` 时，每次 `debug()` 调用会产生轻量的日志输出开销
+
+---
+
+### 3.16 工具
+
+除了内置函数，Aegis 还提供一组工具用于特殊场景的数据处理和日志记录,工具可以后续随需求增长继续增加,此次是预置的工具。预置工具通过 step 配置调用，与自定义工具使用方式相同。
+
+**预置工具与内置函数的区别：**
+
+| 特性   | 内置函数        | 预置工具         |
+| ---- | ----------- | ------------ |
+| 调用方式 | 在模板表达式中直接调用 | 通过 step 配置调用 |
+| 使用场景 | 简单数据操作      | 复杂处理、外部系统交互  |
+| 输出方式 | 返回值到表达式     | 输出到上下文变量     |
+
+#### 3.16.1 json_select 工具
+
+`json_select` 工具用于从 JSON 字符串中按路径提取子结构。当 template 步骤输出 JSON 格式字符串时，可以使用此工具将字符串中的结构化数据提取到 DSL 上下文中。
+
+**工具名称：** `json_select`
+
+**功能描述：** 从 JSON 对象中按路径表达式提取子结构，输出到指定字段
+
+**核心特点：**
+- 单次调用提取一个子结构（对象、数组或基本类型）
+- 输出字段名由 `select.target` 动态指定，与 `output_schema` 设计一致
+- 提取的对象可直接访问其内部字段
+
+---
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `input` | string/object | 是 | 原始 JSON 数据（JSON 字符串或已解析的对象） |
+| `select` | object | 是 | 选择规则 |
+| `select.target` | string | 是 | 输出字段名，指定提取结果存入哪个字段 |
+| `select.path` | string | 是 | JSON 路径表达式 |
+
+---
+
+**路径表达式语法：**
+
+| 语法 | 说明 | 示例 |
+|------|------|------|
+| `field` | 访问对象的字段 | `name`、`user.age`、`data.title` |
+| `field[index]` | 访问数组的指定索引元素 | `items[0]`、`users[2]` |
+| `field[*]` | 访问数组的所有元素（投影） | `items[*]`、`regions[*]` |
+
+---
+
+**输出：**
+
+提取的结果会存入 `output_schema` 中定义的字段，字段名由 `select.target` 指定。
+
+---
+
+**设计限制：单次只能提取一个子结构**
+
+| 可以做 | 不可以做到 |
+|-------|----------|
+| ✅ 提取 `data` 对象，访问其内部所有字段 | ❌ 同时提取 `data.title` 和 `other.field` |
+| ✅ 提取 `items[0]` 对象 | ❌ 同时提取 `items[0]` 和 `items[1]` |
+| ✅ 提取 `items[*]` 数组 | ❌ 同时提取 `items[*]` 和 `count` |
+
+**说明：** `json_select` 一次只能提取一个子结构。如果需要多个不相关的字段，需要多次调用。但对于包含多个字段的对象，可以提取父对象后访问其所有内部字段。
+
+---
+
+**使用示例：**
+
+**示例1：提取对象，访问其内部字段**
+
+~~~~markdown
+### step: format_response
+
+**type**: template
+
+```template
+{
+  "status": "success",
+  "data": {
+    "title": "测试标题",
+    "sub_content": "具体文本内容",
+    "sub_pic": "图片url"
+  }
+}
+```
+
+### step: extract_data
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: "{{format_response.value}}"
+  select:
+    target: my_data        # 指定输出字段名
+    path: "data"            # 提取 data 对象
+output_schema:
+  my_data:
+    type: object
+    description: 提取的数据对象
+```
+
+### step: display_data
+
+**type**: template
+
+```template
+标题：{{extract_data.my_data.title}}
+内容：{{extract_data.my_data.sub_content}}
+图片：{{extract_data.my_data.sub_pic}}
+```
+~~~~
+
+**示例2：提取数组元素**
+
+~~~~markdown
+### step: extract_first_item
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: '{"items":[{"id":1,"name":"A"},{"id":2,"name":"B"}]}'
+  select:
+    target: first_item
+    path: "items[0]"
+output_schema:
+  first_item:
+    type: object
+    description: 第一个元素
+```
+
+### step: use_item
+
+**type**: template
+
+```template
+商品ID：{{extract_first_item.first_item.id}}
+商品名：{{extract_first_item.first_item.name}}
+```
+```
+
+**示例3：提取数组投影**
+
+```markdown
+### step: extract_all_names
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: '{"items":[{"id":1,"name":"A"},{"id":2,"name":"B"}]}'
+  select:
+    target: names
+    path: "items[*].name"
+output_schema:
+  names:
+    type: array
+    description: 所有名称
+```
+
+### step: use_names
+
+**type**: template
+
+```template
+名称列表：{{extract_all_names.names}}
+```
+~~~~markdown
+
+---
+
+**设计限制示例：提取多个不相关字段**
+
+如果确实需要多个不相关的字段，需要多次调用：
+
+~~~~markdown
+### step: extract_data_obj
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: '{"data":{"title":"标题"},"count":100,"status":"ok"}'
+  select:
+    target: data_obj
+    path: "data"
+output_schema:
+  data_obj:
+    type: object
+```
+
+### step: extract_count
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: '{"data":{"title":"标题"},"count":100,"status":"ok"}'
+  select:
+    target: total
+    path: "count"
+output_schema:
+  total:
+    type: number
+```
+
+### step: use_data
+
+**type**: template
+
+```template
+标题：{{extract_data_obj.data_obj.title}}
+总数：{{extract_count.total}}
+状态：需要第三次调用提取
+```
+~~~~
+
+---
+
+**与直接变量引用的区别：**
+
+当 template 步骤输出 JSON 字符串时，不能直接通过字段名访问内部数据。必须使用 `json_select` 工具解析：
+
+~~~~markdown
+# ❌ 错误：无法直接访问 JSON 字符串内部的字段
+{{format_response.data.title}}
+
+# ✅ 正确：使用 json_select 提取对象后访问
+### step: extract
+**type**: tool
+**tool**: json_select
+```yaml
+args:
+  input: "{{format_response.value}}"
+  select:
+    target: my_data
+    path: "data"
+output_schema:
+  my_data:
+    type: string
+```
+~~~~
+后续引用：{{extract.my_data.title}}
+
+
+---
+
+**最佳实践：**
+
+| 场景 | 推荐方式 | 说明 |
+|------|---------|------|
+| 需要多个相邻字段 | 提取父对象 | 一次调用获取父对象，访问其所有字段 |
+| 需要多个分散字段 | 多次调用 | 每个字段单独提取 |
+| 嵌套数据结构 | 提取最近公共父对象 | 减少调用次数，提高效率 |
+
+---
+
+#### 3.16.2 log 工具
+
+`log` 工具用于记录审计日志到数据库，支持层级归属追溯。日志会自动关联当前执行上下文的层级信息（对话 ID、用户目标、执行计划等），可用于业务执行审计和问题排查。
+
+**工具名称：** `log`
+
+**功能描述：** 记录审计日志到数据库，支持层级归属追溯
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|:----:|:------:|------|
+| `level` | string | 否 | `info` | 日志级别（`info`、`warn`、`error`） |
+| `message` | string | 是 | - | 日志消息，描述当前操作或状态 |
+| `data` | object | 否 | - | 附加数据，将被序列化为 JSON 存储 |
+
+**输出：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `logged` | boolean | 是否成功记录日志 |
+
+**自动关联的层级信息：**
+
+每条日志会自动关联当前执行上下文的以下信息：
+
+| 层级 | 说明 |
+|------|------|
+| `conversationId` | 对话 ID |
+| `userGoal` | 用户目标 |
+| `planId` | 执行计划 ID |
+| `planStepId` | 计划步骤 ID |
+| `skillId` | 技能 ID |
+| `skillVersion` | 技能版本 |
+
+**使用示例：**
+
+~~~~markdown
+### step: log_completion
+
+**type**: tool
+**tool**: log
+
+```yaml
+args:
+  level: "info"
+  message: "数据处理完成，共处理 100 条记录"
+  data:
+    itemCount: 100
+    duration: 1250
+    status: "success"
+output_schema:
+  logged:
+    type: boolean
+```
+
+### step: log_error
+
+**type**: tool
+**tool**: log
+
+```yaml
+args:
+  level: "error"
+  message: "数据处理失败"
+  data:
+    errorCode: "DATA_PROCESSING_ERROR"
+    failedItems: 5
+    errorMessage: "无效的数据格式"
+output_schema:
+  logged:
+    type: boolean
+```
+
+### step: log_warning
+
+**type**: tool
+**tool**: log
+
+```yaml
+args:
+  level: "warn"
+  message: "部分数据缺失，使用默认值替代"
+  data:
+    missingFields: ["email", "phone"]
+    defaultValuesUsed: true
+output_schema:
+  logged:
+    type: boolean
+```
+~~~~
+
+**日志级别说明：**
+
+| 级别 | 适用场景 | 示例 |
+|------|---------|------|
+| `info` | 正常操作记录 | 处理完成、数据更新、状态变更 |
+| `warn` | 警告信息 | 使用默认值、部分失败、配置缺失 |
+| `error` | 错误信息 | 处理失败、系统异常、数据错误 |
+
+**日志查询：**
+
+记录的审计日志支持按以下维度查询：
+- 按时间范围查询
+- 按对话 ID 查询
+- 按技能 ID 查询
+- 按日志级别筛选
+- 按消息内容关键词搜索
+
+**使用建议：**
+
+| 场景 | 建议级别 | 说明 |
+|------|---------|------|
+| 关键业务操作 | `info` | 记录重要操作的执行状态 |
+| 可恢复的异常 | `warn` | 记录不影响整体流程的问题 |
+| 严重错误 | `error` | 记录需要人工介入的错误 |
+| 调试信息 | - | 使用 `debug()` 函数而非 log 工具 |
+
+**与 debug() 函数的区别：**
+
+| 特性 | `debug()` 函数 | `log` 工具 |
+|------|----------------|----------|
+| 控制方式 | `**debug**` 属性 | 无条件执行 |
+| 默认行为 | 不执行（`debug: false`） | 总是执行 |
+| 用途 | 开发调试 | 业务审计 |
+| 日志级别 | DEBUG | info/warn/error |
+| 适用类型 | AtomicSkill、CognitiveSkill | 仅 AtomicSkill |
+| 输出位置 | 技能调试日志 | 审计日志系统（持久化） |
+
+**注意事项：**
+
+1. **性能影响**：`log` 工具会进行数据库写入，频繁使用可能影响性能
+2. **敏感信息**：避免在日志中记录密码、密钥等敏感数据
+3. **数据大小**：`data` 参数建议控制在合理大小内，避免存储超大对象
+4. **适用范围**：`log` 工具仅适用于 AtomicSkill，CognitiveSkill 请使用其他日志机制
+
+---
+
+#### 3.16.3 http_request 工具
+
+`http_request` 工具用于执行 HTTP GET/POST 请求，支持自定义请求头、查询参数和请求体。适用于调用外部 API 或获取远程数据。
+
+**工具名称：** `http_request`
+
+**功能描述：** 执行 HTTP GET/POST 请求，返回响应状态码、响应头和响应体
+
+---
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 默认值 | 说明 |
+|------|------|:----:|:------:|------|
+| `url` | string | 是 | - | 请求 URL（支持 http:// 和 https://） |
+| `method` | string | 否 | `GET` | HTTP 方法（`GET` 或 `POST`） |
+| `headers` | object | 否 | - | 请求头（如 `Authorization`、`Content-Type`） |
+| `query` | object | 否 | - | 查询参数（自动拼接到 URL） |
+| `body` | object | 否 | - | 请求体（POST 时使用，自动序列化为 JSON） |
+| `timeout` | integer | 否 | `30000` | 超时时间（毫秒，范围 100-300000） |
+
+---
+
+**输出：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `statusCode` | integer | HTTP 状态码（如 200、404、500） |
+| `headers` | object | 响应头（JSON 字符串或对象） |
+| `body` | string/object | 响应体（原始字符串） |
+
+---
+
+**使用示例：**
+
+**示例1：简单 GET 请求**
+
+~~~~markdown
+### step: fetch_data
+
+**type**: tool
+**tool**: http_request
+
+```yaml
+args:
+  url: "https://api.example.com/data"
+  method: "GET"
+  headers:
+    Authorization: "Bearer {{token}}"
+output_schema:
+  statusCode:
+    type: integer
+  headers:
+    type: object
+  body:
+    type: string
+```
+
+### step: use_response
+
+**type**: template
+
+```template
+状态码：{{fetch_data.statusCode}}
+响应：{{fetch_data.body}}
+```
+~~~~
+
+**示例2：POST 请求带请求体**
+
+~~~~markdown
+### step: create_record
+
+**type**: tool
+**tool**: http_request
+
+```yaml
+args:
+  url: "https://api.example.com/records"
+  method: "POST"
+  headers:
+    Content-Type: "application/json"
+    Authorization: "Bearer {{token}}"
+  body:
+    id: "{{record_id}}"
+    title: "{{title}}"
+    content: "{{content}}"
+output_schema:
+  statusCode:
+    type: integer
+  body:
+    type: string
+```
+~~~~
+
+**示例3：带查询参数的 GET 请求**
+
+~~~~markdown
+### step: search_api
+
+**type**: tool
+**tool**: http_request
+
+```yaml
+args:
+  url: "https://api.example.com/search"
+  method: "GET"
+  query:
+    q: "{{search_keyword}}"
+    limit: "10"
+    offset: "0"
+output_schema:
+  statusCode:
+    type: integer
+  body:
+    type: string
+```
+~~~~
+
+**示例4：处理 JSON 响应**
+
+~~~~markdown
+### step: call_api
+
+**type**: tool
+**tool**: http_request
+
+```yaml
+args:
+  url: "https://api.example.com/users/{{user_id}}"
+  method: "GET"
+output_schema:
+  statusCode:
+    type: integer
+  body:
+    type: string
+```
+
+### step: parse_response
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: "{{call_api.body}}"
+  select:
+    target: user_data
+    path: "data"
+output_schema:
+  user_data:
+    type: object
+    description: API 返回的用户数据
+```
+
+### step: use_data
+
+**type**: template
+
+```template
+用户数据：{{parse_response.user_data}}
+```
+~~~~
+
+---
+
+**请求参数说明：**
+
+**method 参数：**
+
+| 值 | 说明 | 使用场景 |
+|----|------|---------|
+| `GET` | 获取数据 | 查询、检索、下载 |
+| `POST` | 提交数据 | 创建、更新、上传 |
+
+**headers 参数：**
+
+常用请求头示例：
+
+```yaml
+headers:
+  Authorization: "Bearer {{token}}"
+  Content-Type: "application/json"
+  Accept: "application/json"
+  User-Agent: "Aegis-Skill/1.0"
+```
+
+**query 参数：**
+
+查询参数会自动拼接到 URL 后面，支持 URL 编码：
+
+```yaml
+query:
+  keyword: "{{search_term}}"
+  page: "1"
+  pageSize: "20"
+```
+
+实际请求 URL：`https://api.example.com/search?keyword=xxx&page=1&pageSize=20`
+
+**body 参数：**
+
+POST 请求的请求体，支持对象自动序列化为 JSON：
+
+```yaml
+body:
+  name: "张三"
+  age: 30
+  email: "zhangsan@example.com"
+```
+
+---
+
+**输出处理：**
+
+**statusCode 字段：**
+
+| 状态码范围 | 说明 | 示例 |
+|---------|------|------|
+| 2xx | 成功 | 200 OK、201 Created |
+| 3xx | 重定向 | 301 Moved Permanently |
+| 4xx | 客户端错误 | 400 Bad Request、404 Not Found |
+| 5xx | 服务器错误 | 500 Internal Server Error |
+
+**条件处理示例：**
+
+~~~~markdown
+### step: check_status
+
+**type**: template
+
+```yaml
+when:
+  expr: "{{call_api.statusCode}} == 200"
+```
+
+```template
+请求成功！
+响应：{{call_api.body}}
+```
+
+### step: handle_error
+
+**type**: template
+
+```yaml
+when:
+  expr: "{{call_api.statusCode}} != 200"
+```
+
+```template
+请求失败，状态码：{{call_api.statusCode}}
+```
+~~~~
+
+---
+
+**安全策略：**
+
+`http_request` 工具受安全策略限制，只能访问白名单内的 URL。
+
+**限制说明：**
+
+| 限制类型 | 说明 |
+|---------|------|
+| URL 白名单 | 只能访问配置中允许的域名 |
+| 超时限制 | 最小 100ms，最大 300000ms（5分钟） |
+| 响应大小 | 限制最大响应体大小，防止内存溢出 |
+
+**错误代码：**
+
+| 错误代码 | 说明 |
+|---------|------|
+| `URL_NOT_ALLOWED` | URL 不在白名单中 |
+| `CONNECTION_TIMEOUT` | 连接超时 |
+| `RESPONSE_TOO_LARGE` | 响应体超过大小限制 |
+| `INVALID_METHOD` | HTTP 方法必须是 GET 或 POST |
+
+---
+
+**使用建议：**
+
+| 场景 | 建议方式 | 说明 |
+|------|---------|------|
+| 简单数据获取 | 使用 GET 请求 | 更符合 HTTP 语义 |
+| 数据提交 | 使用 POST 请求 | 请求体不会出现在 URL 中 |
+| 认证请求 | 在 headers 中添加 Authorization | 支持 Bearer Token 等 |
+| 大量数据 | 使用 POST + body | URL 长度有限制 |
+| 敏感数据 | 使用 POST + body | 避免数据出现在日志或 URL 中 |
+
+---
+
+**与 json_select 配合使用：**
+
+当 API 返回 JSON 数据时，可以配合 `json_select` 工具提取需要的字段：
+
+~~~~markdown
+### step: call_api
+
+**type**: tool
+**tool**: http_request
+
+```yaml
+args:
+  url: "https://api.example.com/data"
+  method: "GET"
+output_schema:
+  statusCode:
+    type: integer
+  body:
+    type: string
+```
+
+### step: extract_data
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: "{{call_api.body}}"
+  select:
+    target: result
+    path: "data"
+output_schema:
+  result:
+    type: object
+```
+~~~~
+
+---
+
+#### 3.16.4 text_file 工具
+
+`text_file` 工具用于读取限定目录下的文本文件内容。支持读取纯文本、Markdown、JSON 等文本格式的文件。
+
+**工具名称：** `text_file`
+
+**功能描述：** 读取限定目录下的文本文件，返回文件内容
+
+---
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `file` | resource | 是 | 文件资源引用（使用 `file://` 协议，相对于限定目录） |
+
+---
+
+**输出：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `content` | string | 文件内容（文本字符串） |
+
+---
+
+**支持的文件类型：**
+
+| 文件类型 | 扩展名示例 | 说明 |
+|---------|-----------|------|
+| 纯文本 | `.txt`、`.log`、`.csv` | 普通文本文件 |
+| Markdown | `.md` | Markdown 文档 |
+| JSON | `.json` | JSON 文件（作为原始文本读取） |
+| 配置文件 | `.yaml`、`.yml`、`.properties`、`.ini` | 配置文件（作为原始文本读取） |
+| 代码文件 | `.js`、`.py`、`.java`、`.ts` | 源代码文件（作为原始文本读取） |
+
+---
+
+**安全机制：**
+
+| 安全限制 | 说明 |
+|---------|------|
+| 目录限制 | 只能访问配置的限定目录及其子目录 |
+| 路径规范化 | 防止路径穿越攻击（如 `../`） |
+| 文件大小限制 | 默认最大 10MB，防止内存溢出 |
+| 扩展名白名单 | 只允许读取文本类文件，禁止二进制文件 |
+
+---
+
+**使用示例：**
+
+**示例1：读取 JSON 配置文件**
+
+~~~~markdown
+### step: read_config
+
+**type**: tool
+**tool**: text_file
+
+```yaml
+args:
+  file: "file://config/app.json"
+output_schema:
+  content:
+    type: string
+    description: 配置文件内容
+```
+
+### step: parse_config
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: "{{read_config.content}}"
+  select:
+    target: config
+    path: "$"  # 提取根对象
+output_schema:
+  config:
+    type: object
+    description: 解析后的配置对象
+```
+
+### step: use_config
+
+**type**: template
+
+```template
+应用名称：{{parse_config.config.appName}}
+版本号：{{parse_config.config.version}}
+```
+~~~~
+
+**示例2：读取 Markdown 文档**
+
+~~~~markdown
+### step: read_docs
+
+**type**: tool
+**tool**: text_file
+
+```yaml
+args:
+  file: "file://docs/user_guide.md"
+output_schema:
+  content:
+    type: string
+    description: 用户指南内容
+```
+
+### step: display_docs
+
+**type**: template
+
+```template
+# 用户指南
+
+{{read_docs.content}}
+```
+~~~~
+
+**示例3：读取 CSV 数据文件**
+
+~~~~markdown
+### step: read_data
+
+**type**: tool
+**tool**: text_file
+
+```yaml
+args:
+  file: "file://data/sales.csv"
+output_schema:
+  content:
+    type: string
+    description: CSV 文件内容
+```
+
+### step: process_data
+
+**type**: template
+
+```template
+原始数据：
+{{read_data.content}}
+```
+~~~~
+
+---
+
+**文件路径说明：**
+
+**`file://` 协议：**
+
+- 路径是**相对路径**，相对于系统配置的限定根目录
+- 路径必须使用 `file://` 前缀
+- 示例：`file://config/app.json`
+
+**路径示例：**
+
+```yaml
+# 正确的路径
+file: "file://config/app.json"
+file: "file://data/reports/2026/report.md"
+file: "file://logs/error.log"
+
+# 错误的路径（使用绝对路径）
+file: "/etc/config.json"
+file: "D:\\data\\file.txt"
+```
+
+**目录结构示例：**
+
+假设限定根目录为 `/opt/aegis/files/`：
+
+```
+/opt/aegis/files/
+├── config/
+│   ├── app.json
+│   └── database.yaml
+├── data/
+│   ├── reports/
+│   │   └── 2026/
+│   │       └── report.md
+│   └── users.json
+└── logs/
+    ├── access.log
+    └── error.log
+```
+
+**对应的引用方式：**
+
+```yaml
+file: "file://config/app.json"           # → /opt/aegis/files/config/app.json
+file: "file://data/reports/2026/report.md" # → /opt/aegis/files/data/reports/2026/report.md
+file: "file://logs/access.log"            # → /opt/aegis/files/logs/access.log
+```
+
+---
+
+**与其他工具配合：**
+
+**读取 JSON 后解析数据：**
+
+~~~~markdown
+### step: read_file
+
+**type**: tool
+**tool**: text_file
+
+```yaml
+args:
+  file: "file://data/users.json"
+output_schema:
+  content:
+    type: string
+```
+
+### step: extract_users
+
+**type**: tool
+**tool**: json_select
+
+```yaml
+args:
+  input: "{{read_file.content}}"
+  select:
+    target: users
+    path: "users"
+output_schema:
+  users:
+    type: array
+    description: 用户列表
+```
+~~~~
+
+---
+
+**注意事项：**
+
+1. **只能读取文本文件**：不支持图片、视频等二进制文件
+2. **文件大小限制**：默认最大 10MB，超过限制会报错
+3. **路径安全**：只能在限定目录内读取，无法访问系统其他位置
+4. **文件编码**：默认使用 UTF-8 编码读取
+5. **JSON 作为文本**：JSON 文件作为原始字符串读取，如需解析需配合 `json_select`
+
+---
+
+**错误代码：**
+
+| 错误代码 | 说明 |
+|---------|------|
+| `FILE_NOT_FOUND` | 文件不存在 |
+| `PATH_SECURITY` | 路径超出限定目录或包含非法字符 |
+| `FILE_TOO_LARGE` | 文件超过大小限制 |
+| `FILE_NOT_READABLE` | 文件不可读 |
+| `UNSUPPORTED_TYPE` | 不支持的文件类型（二进制文件） |
+
+---
+
+**使用建议：**
+
+| 场景 | 推荐方式 | 说明 |
+|------|---------|------|
+| 读取配置文件 | `text_file` + `json_select` | 先读取文本，再解析 JSON |
+| 读取文档内容 | 直接使用 `text_file` | Markdown、纯文本直接可用 |
+| 大文件处理 | 分块读取或使用专门工具 | 文件太大时考虑其他方案 |
+| 动态文件路径 | 从输入参数构建 | 使用 `file://{{path}}` 拼接路径 |
+
+---
+
+#### 3.16.5 db_insert 工具
+
+`db_insert` 工具用于向指定数据库表插入单行数据，返回影响行数和自增主键。
+
+**工具名称：** `db_insert`
+
+**功能：** 向数据库表插入一条记录，返回插入结果和自增主键值。
+
+---
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `datasource` | string | 是 | 数据源名称（在系统配置中预定义） |
+| `table` | string | 是 | 表名（仅允许字母、数字、下划线） |
+| `fields` | object | 是 | 字段值映射，key 为列名，value 为值 |
+
+---
+
+**输出结构：**
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `affectedRows` | integer | 是 | 影响行数（通常为 1） |
+| `generatedKey` | integer | 否 | 自增主键ID（如果表有自增列） |
+
+---
+
+**使用示例：**
+
+```yaml
+### step: insert_order
+**type**: tool
+**tool**: db_insert
+
+args:
+  datasource: order_db
+  table: orders
+  fields:
+    customer_id: "{{customer_info.id}}"
+    product_name: "{{product_info.name}}"
+    quantity: "{{order.quantity}}"
+    total_price: "{{order.total}}"
+    status: "pending"
+    created_at: "{{now()}}"
+
+output_schema:
+  affectedRows:
+    type: integer
+    description: 插入的行数
+  generatedKey:
+    type: integer
+    description: 新订单的ID
+    optional: true
+```
+
+---
+
+**安全特性：**
+
+1. **数据源隔离**：数据源来自系统配置，用户无法直接指定连接信息
+2. **标识符验证**：表名和字段名仅允许字母、数字、下划线
+3. **参数化查询**：所有值通过 PreparedStatement 参数化，防止 SQL 注入
+4. **类型安全**：自动映射 Java 类型和 JDBC 类型
+
+---
+
+**错误代码：**
+
+| 错误代码 | 说明 |
+|---------|------|
+| `DATASOURCE_NOT_FOUND` | 指定的数据源不存在 |
+| `TABLE_NOT_FOUND` | 表不存在 |
+| `INVALID_IDENTIFIER` | 表名或字段名包含非法字符 |
+| `SQL_EXECUTION_ERROR` | SQL 执行失败（如违反约束） |
+| `CONNECTION_ERROR` | 数据库连接失败 |
+
+---
+
+#### 3.16.6 db_update 工具
+
+`db_update` 工具用于基于 WHERE 条件更新数据库表中的记录。
+
+**工具名称：** `db_update`
+
+**功能：** 根据 WHERE 条件更新表中的记录，返回影响行数。
+
+---
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `datasource` | string | 是 | 数据源名称（在系统配置中预定义） |
+| `table` | string | 是 | 表名（仅允许字母、数字、下划线） |
+| `set` | object | 是 | 更新的字段值映射，key 为列名，value 为值 |
+| `where` | object | 是 | WHERE 条件映射（不能为空，防止全表更新） |
+
+---
+
+**输出结构：**
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `affectedRows` | number | 是 | 影响行数 |
+
+---
+
+**使用示例：**
+
+```yaml
+### step: update_order_status
+**type**: tool
+**tool**: db_update
+
+args:
+  datasource: order_db
+  table: orders
+  set:
+    status: "completed"
+    updated_at: "{{now()}}"
+  where:
+    id: "{{order_id}}"
+    customer_id: "{{customer_id}}"
+
+output_schema:
+  affectedRows:
+    type: number
+    description: 更新的行数
+```
+
+---
+
+**安全特性：**
+
+1. **强制 WHERE 条件**：WHERE 条件不能为空，防止全表更新
+2. **数据源隔离**：数据源来自系统配置，用户无法直接指定连接信息
+3. **标识符验证**：表名和字段名仅允许字母、数字、下划线
+4. **参数化查询**：所有值通过 PreparedStatement 参数化，防止 SQL 注入
+
+---
+
+**错误代码：**
+
+| 错误代码 | 说明 |
+|---------|------|
+| `DATASOURCE_NOT_FOUND` | 指定的数据源不存在 |
+| `TABLE_NOT_FOUND` | 表不存在 |
+| `INVALID_IDENTIFIER` | 表名或字段名包含非法字符 |
+| `EMPTY_WHERE_CLAUSE` | WHERE 条件为空（安全限制） |
+| `SQL_EXECUTION_ERROR` | SQL 执行失败 |
+| `CONNECTION_ERROR` | 数据库连接失败 |
+
+---
+
+**使用建议：**
+
+| 场景 | 推荐方式 | 说明 |
+|------|---------|------|
+| 插入新记录 | `db_insert` | 返回自增主键，可用于后续引用 |
+| 更新现有记录 | `db_update` | 必须提供 WHERE 条件 |
+| 批量操作 | 使用 foreach 循环 | 结合 AtomicSkill 的 foreach 节点 |
+| 事务处理 | 在 CognitiveSkill 中编排 | 通过多个步骤实现事务逻辑 |
+
+---
+
+#### 3.16.7 db_select 工具
+
+`db_select` 工具用于执行数据库查询，返回查询结果。
+
+**工具名称：** `db_select`
+
+**功能：** 执行 SELECT 查询，返回结果集。输出结构由调用时通过 `output_schema` 定义。
+
+---
+
+**输入参数：**
+
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|:----:|------|
+| `datasource` | string | 是 | 数据源名称（在系统配置中预定义） |
+| `query` | string | 是 | SELECT 查询语句（仅允许 SELECT） |
+| `params` | array | 否 | 查询参数，对应 SQL 中的 `?` 占位符 |
+
+---
+
+**输出结构：**
+
+输出结构由调用时的 `output_schema` 定义，顶级字段必须为 `result`：
+
+```yaml
+output_schema:
+  result:
+    type: object  # 单行查询
+    # 或
+    type: array   # 多行查询
+    items:        # array 类型时定义元素结构
+      <column_name>:
+        type: <type>
+```
+
+---
+
+**使用示例：**
+
+**示例 1：返回单行对象**
+
+```yaml
+### step: get_user
+**type**: tool
+**tool**: db_select
+
+args:
+  datasource: user_db
+  query: "SELECT id, username, email FROM users WHERE id = ?"
+  params:
+    - "{{user_id}}"
+
+output_schema:
+  result:
+    type: object
+    description: 用户信息
+    id:
+      type: integer
+      description: 用户ID
+    username:
+      type: string
+      description: 用户名
+    email:
+      type: string
+      description: 邮箱
+```
+
+**示例 2：返回多行数组**
+
+```yaml
+### step: list_orders
+**type**: tool
+**tool**: db_select
+
+args:
+  datasource: order_db
+  query: "SELECT id, customer_name, total FROM orders WHERE status = ?"
+  params:
+    - "pending"
+
+output_schema:
+  result:
+    type: array
+    description: 订单列表
+    items:
+      id:
+        type: integer
+      customer_name:
+        type: string
+      total:
+        type: number
+```
+
+**示例 3：使用 result.length**
+
+```yaml
+### step: query_pending_orders
+**type**: tool
+**tool**: db_select
+
+args:
+  datasource: order_db
+  query: "SELECT id, amount FROM orders WHERE status = 'pending'"
+  params: []
+
+output_schema:
+  result:
+    type: array
+    items:
+      id:
+        type: integer
+      amount:
+        type: number
+
+### step: check_count
+**type**: template
+
+template: |
+  共 {{query_pending_orders.result.length}} 个待处理订单。
+  {{#when query_pending_orders.result.length > 0}}
+  需要尽快处理。
+  {{/when}}
+```
+
+**示例 4：多表关联查询**
+
+```yaml
+### step: get_order_details
+**type**: tool
+**tool**: db_select
+
+args:
+  datasource: order_db
+  query: |
+    SELECT
+      o.id as order_id,
+      o.total_amount,
+      c.name as customer_name,
+      c.email as customer_email,
+      p.name as product_name,
+      oi.quantity
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.id
+    JOIN order_items oi ON o.id = oi.order_id
+    JOIN products p ON oi.product_id = p.id
+    WHERE o.id = ?
+  params:
+    - "{{order_id}}"
+
+output_schema:
+  result:
+    type: array
+    description: 订单详情（包含商品明细）
+    items:
+      order_id:
+        type: integer
+      total_amount:
+        type: number
+      customer_name:
+        type: string
+      customer_email:
+        type: string
+      product_name:
+        type: string
+      quantity:
+        type: integer
+```
+
+---
+
+**安全特性：**
+
+| 特性 | 说明 |
+|------|------|
+| **只读限制** | 仅允许 SELECT 语句，拒绝 INSERT/UPDATE/DELETE/DDL |
+| **只读数据源** | 使用只读数据源配置 |
+| **参数化查询** | 使用 `?` 占位符，防止 SQL 注入 |
+| **结果集限制** | 默认最大返回 1000 行，超出时抛出错误 |
+| **查询超时** | 默认 30 秒超时限制 |
+
+---
+
+**错误代码：**
+
+| 错误代码 | 说明 |
+|---------|------|
+| `DATASOURCE_NOT_FOUND` | 指定的数据源不存在 |
+| `INVALID_SQL` | SQL 语句非 SELECT 或语法错误 |
+| `RESULT_SET_TOO_LARGE` | 结果集超过最大行数限制 |
+| `QUERY_TIMEOUT` | 查询超时 |
+| `CONNECTION_ERROR` | 数据库连接失败 |
+
 ---
 
 ## 4. 最佳实践
@@ -1503,7 +3208,7 @@ when:
 - **相关输入输出变量名称**：使用与业务含义相匹配的名词或动名词以及短语，如 `file`、`summary`、`result`、`report`
 - **输入参数**：使用下划线命名法，如 `order_id`、`unit_price`
 - **工具名称**：使用点号分隔命名空间，如 `database.query`、`search_api`
-- **varName**：与 output_schema 中的字段名对齐，如输出定义了 `report` 字段，则 varName 也用 `report`
+- **步骤命名**：使用动词或动词短语，如 `calculate_total`、`prepare_summary`，作为变量引用的前缀
 
 ### 4.2 设计原则
 
@@ -1552,7 +3257,6 @@ when:
 - `break`
 - `tool`
 - `when`
-- `varName`
 - `ignore`
 - `input`
 - `output`
@@ -1568,6 +3272,7 @@ when:
 - `break`
 - `roles`
 - `ui`
+- `debug`
 -  `args`
 - `semantic_role`
 - `internal_flow`
@@ -1589,4 +3294,6 @@ when:
 
 | 版本    | 日期         | 说明                                                                                   |
 | ----- | ---------- | ------------------------------------------------------------------------------------ |
+| 3.4.2 | 2026-03-08 | AtomicSkill 变量引用方式调整为步骤名前缀（`{{stepName.field}}`），移除 `varName` 属性，统一变量作用域；新增 `output_schema` 的 `mapping` 映射机制；新增 `json_select`、`log`、`http_request`、`text_file`、`db_insert`、`db_update`、`db_select` 预置工具说明；新增 array 类型的 `.length` 属性说明 |
+| 3.4.1 | 2026-03-08 | 新增 debug 内置函数机制，支持通过 `**debug**` 属性控制调试日志输出                                           |
 | 3.4.0 | 2026-03-04 | 重构版本                                                                                 |

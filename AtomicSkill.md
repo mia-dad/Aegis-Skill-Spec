@@ -2,7 +2,7 @@
 
 > 本文档是 [Aegis Skill DSL 规范](./README.md) 的 AtomicSkill 专属部分。
 >
-> **规范版本：3.4.0**
+> **规范版本：3.4.2**
 
 ## 目录
 
@@ -383,27 +383,153 @@ mapping:
 **type**: <tool|prompt|template|await>
 ```
 
-#### varName
+#### 变量引用方式
 
-`varName` 用于将步骤输出以指定键名直接存入变量上下文，可通过 `{{varName}}` 直接访问。
+AtomicSkill 使用**步骤名前缀**的变量引用方式，每个步骤的输出都通过 `{{stepName.field}}` 语法访问。
 
-| Step 类型 | varName | 说明 |
-|-----------|---------|------|
-| `prompt` | **必填** | LLM 响应以 varName 为键存入上下文 |
-| `template` | **必填** | 渲染结果以 varName 为键存入上下文 |
-| `await` | **不适用** | `input_schema` 中的字段名直接作为 key 写入上下文 |
-| `tool` | **不适用** | 工具通过 `output.put(key, value)` 直接写入上下文，输出 key 由工具实现决定 |
+**基本语法：**
 
-语法：
 ```markdown
-**type**: template  
-**varName**: report
+{{stepName.field}}
 ```
 
-特性：
-- **直接访问**：通过 `{{varName}}` 访问输出，无需 `.value` 后缀
-- **与 output_schema 配合**：varName 应与 output_schema 中定义的字段名对齐，确保最终输出正确
-- **命名规则**：必须符合 `^[a-z][a-z0-9_]*$` 模式，且不能与已有 stepName、其他 varName 或输入字段名冲突
+**各步骤类型的变量引用：**
+
+| Step 类型 | 输出声明方式 | 引用语法 | 说明 |
+|-----------|-------------|---------|------|
+| `prompt` | 无需声明，自动输出 | `{{stepName.value}}` | LLM 响应的完整文本 |
+| `template` | 无需声明，自动输出 | `{{stepName.value}}` | 模板渲染结果 |
+| `tool` | `output_schema` 声明 | `{{stepName.field}}` | 工具输出的每个字段 |
+| `await` | `input_schema` 声明 | `{{stepName.field}}` | 用户输入的每个字段 |
+
+**`.value` 字段说明：**
+
+`.value` 代表步骤的**整体输出**。对于 prompt 和 template 步骤，使用 `{{stepName.value}}` 引用步骤的完整输出结果。
+
+**示例：**
+
+~~~markdown
+### step: calculate_total
+
+**type**: template
+
+```template
+{{quantity * unit_price}}
+```
+
+### step: result_message
+
+**type**: template
+
+```template
+订单 {{order_id}} 已确认，总金额 ¥{{calculate_total.value}}。
+```
+```
+~~~
+**步骤命名规则：**
+
+- 使用下划线命名法（snake_case）
+- 必须符合 `^[a-z][a-z0-9_]*$` 模式
+- 不能与已有步骤名或输入字段名冲突
+- 建议使用动词或动词短语，如 `calculate_total`、`prepare_summary`
+
+**示例：**
+
+~~~markdown
+### step: fetch_data
+
+**type**: tool
+**tool**: search_api
+
+```yaml
+args:
+  query: "{{search_term}}"
+output_schema:
+  results:
+    type: array
+    description: 搜索结果列表
+  total:
+    type: number
+    description: 结果总数
+```
+
+### step: analyze
+
+**type**: prompt
+
+```prompt
+请分析以下数据：
+{{fetch_data.results}}
+共 {{fetch_data.total}} 条记录。
+
+请给出分析结果。
+```
+~~~
+
+**变量作用域隔离：**
+
+每个步骤的输出都被隔离在各自的作用域中，不会相互覆盖：
+
+```markdown
+### step: step1
+**type**: prompt
+```
+输出内容A
+```
+
+### step: step2
+**type**: prompt
+```
+输出内容B
+```
+
+### step: compare
+**type**: template
+```
+步骤1输出：{{step1.value}}
+步骤2输出：{{step2.value}}
+```
+```
+
+**与 output_schema 的映射：**
+
+步骤输出需要通过 `output_schema` 的 `mapping` 字段映射到最终输出。
+
+详细映射规则请参见 [README.md - output_schema 的 mapping 映射机制](#https://github.com/your-repo/blob/main/README.md#221-output_schema-的-mapping-映射机制)。
+
+**简要说明：**
+
+| mapping 设置 | 行为 |
+|------------|------|
+| 未设置 | 系统从上下文中查找与字段名同名的变量 |
+| 已设置 | 使用 mapping 指定的步骤输出引用 |
+
+**示例：**
+
+~~~markdown
+## output_schema
+
+```yaml
+# 方式1：无 mapping，依赖同名查找
+summary:
+  type: string
+  description: 摘要内容
+
+# 方式2：有 mapping，显式指定来源
+final_result:
+  type: string
+  description: 最终结果
+  mapping: {{generate_summary.value}}
+```
+
+## steps
+
+### step: generate_summary
+**type**: prompt
+```
+生成摘要...
+```
+~~~
 
 #### ignore 异常处理（步骤级）
 
@@ -514,30 +640,27 @@ when:
 
 #### 变量引用规则
 
-**Tool / Await 步骤输出** — 直接使用 key 名引用，不需要步骤名前缀：
+**所有步骤输出** — 统一使用 `{{stepName.field}}` 语法引用：
 
 ```prompt
-总销售额：{{total_sales}}
-用户确认：{{confirm}}
-用户备注：{{notes}}
-```
+# 引用 tool 步骤输出
+总销售额：{{calculate_total.total}}
+用户确认：{{user_confirm.confirm}}
+用户备注：{{user_confirm.notes}}
 
-> Tool 步骤的 key 由工具代码 `output.put(key, value)` 决定；Await 步骤的 key 由 `input_schema` 中定义的字段名决定。
-
-**Prompt / Template 步骤输出** — 使用 varName 引用：
-
-```prompt
-报告内容：{{report}}
-消息文本：{{message}}
+# 引用 prompt/template 步骤输出
+报告内容：{{generate_report.value}}
+消息文本：{{prepare_message.value}}
 ```
 
 **变量存储规则：**
 
-| Step 类型 | 存入上下文的键 | 访问语法 |
-|-----------|--------------|---------|
-| prompt / template | varName | `{{varName}}` |
-| tool | 工具代码调用 `output.put(key, value)` 决定 | `{{key}}` |
-| await | `input_schema` 中的字段名 | `{{field_name}}` |
+| Step 类型 | 访问语法 |
+|-----------|---------|
+| prompt | `{{stepName.value}}` |
+| template | `{{stepName.value}}` |
+| tool | `output_schema` 中定义的字段 | `{{stepName.field}}` |
+| await | `input_schema` 中定义的字段 | `{{stepName.field}}` |
 
 #### 模板语法
 
@@ -603,7 +726,7 @@ when:
 所有分数：{{result[*].score}}
 # 结果：[80, 90]
 
-所有内容：{{result[*].content}}
+所有内容：{{result[*].value}}
 # 结果：["x", "y"]
 ```
 
@@ -795,7 +918,7 @@ output_schema:
 | `args` | 是 | 工具输入参数（支持模板语法） |
 | `output_schema` | 是 | 声明工具输出的 key 及其类型 |
 
-> **注意**：Tool 步骤**不需要** `varName`。工具的输出 key 由工具定义决定，技能开发者需查阅工具文档了解其输出字段。
+**输出访问：** Tool 步骤的输出通过 `{{stepName.field}}` 访问，其中 `field` 是 `output_schema` 中定义的字段名。
 
 Tool 调用格式说明
  Tool在调用时需要解决两个问题：
@@ -850,7 +973,6 @@ args:
 ### step: <step_name>
 
 **type**: prompt
-**varName**: <variable_name>
 
 ```prompt
 <prompt_template>
@@ -860,8 +982,9 @@ args:
 | 字段 | 必需 | 说明 |
 |------|------|------|
 | `type` | 是 | 必须为 `prompt` |
-| `varName` | 是 | 输出变量名 |
 | ` ```prompt` 代码块 | 是 | Prompt 模板内容 |
+
+**输出访问：** Prompt 步骤的输出通过 `{{stepName.value}}` 访问。
 
 ##### 示例
 
@@ -869,7 +992,19 @@ args:
 ### step: analyze_data
 
 **type**: prompt
-**varName**: report
+
+```prompt
+请分析 {{company}} 在 {{period}} 期间的财务数据：
+{{fetch_data.data}}
+
+请给出专业分析。
+```
+~~~
+
+后续引用：
+```prompt
+分析结果：{{analyze_data.value}}
+```
 
 ```prompt
 你是一位专业的财务分析师。
@@ -886,7 +1021,7 @@ args:
 
 #### 4.4.3 Template 步骤
 
-纯文本模板渲染，只做变量替换，**不调用 LLM 也不调用 Tool**。渲染结果以 varName 为键直接存入上下文。
+纯文本模板渲染，只做变量替换，**不调用 LLM 也不调用 Tool**。
 在某些需求上，如果需要对步骤、变量进行compose组合，也是通过此步骤来实现。
 
 适用场景：
@@ -900,7 +1035,6 @@ args:
 ### step: <step_name>
 
 **type**: template
-**varName**: <variable_name>
 
 ```template
 模板内容，支持 {{variable}} 语法
@@ -910,17 +1044,19 @@ args:
 | 字段 | 必需 | 说明 |
 |------|------|------|
 | `type` | 是 | 必须为 `template` |
-| `varName` | 是 | 输出变量名 |
 | ` ```template` 代码块 | 是 | 模板内容 |
+
+**输出访问：** Template 步骤的输出通过 `{{stepName.value}}` 访问。
 
 ##### Template vs Prompt
 
-| 特性 | Template | Prompt |
-|------|----------|--------|
-| 是否调用 LLM | 否 | 是 |
-| 输出可控性 | 完全确定性 | 不确定（LLM 生成） |
-| 性能 | 极快（纯字符串替换） | 较慢（网络调用） |
-| 适用场景 | 格式固定的文本拼接 | 需要智能生成的内容 |
+| 特性       | Template   | Prompt      |
+| -------- | ---------- | ----------- |
+| 是否调用 LLM | 否          | 是           |
+| 输出可控性    | 完全确定性      | 不确定（LLM 生成） |
+| 输出类型     | 字符类型结果     | 字符类型结果      |
+| 性能       | 极快（纯字符串替换） | 较慢（网络调用）    |
+| 适用场景     | 格式固定的文本拼接  | 需要智能生成的内容   |
 
 #### 4.4.4 Await 步骤
 
@@ -950,7 +1086,7 @@ input_schema:
 | `message` | 是 | 向用户展示的提示信息 |
 | `input_schema` | 是 | 用户输入的结构定义，遵循语义类型规范 |
 
-> **注意**：Await 步骤**不需要** `varName`。用户提交输入后，`input_schema` 中定义的每个字段直接以字段名为 key 写入执行上下文。
+**输出访问：** 用户提交输入后，`input_schema` 中定义的每个字段通过 `{{stepName.field}}` 访问。
 
 ##### Await 输入的语义类型
 
@@ -1150,7 +1286,7 @@ output_schema:
 ~~~markdown
 # skill: chat
 
-**version**: 3.4.0
+**version**: 3.4.2
 **type**: AtomicSkill
 
 ## description
@@ -1188,7 +1324,6 @@ content:
 ### step: answer
 
 **type**: prompt
-**varName**: content
 
 ```prompt
 你是一个友好的AI助手。请回答用户的问题。
@@ -1197,6 +1332,7 @@ content:
 
 请给出简洁、准确的回答。
 ```
+```
 ~~~
 
 ### 6.2 数据搜索 AtomicSkill
@@ -1204,7 +1340,7 @@ content:
 ~~~markdown
 # skill: simple_search
 
-**version**: 3.4.0
+**version**: 3.4.2
 **type**: AtomicSkill
 
 ## description
@@ -1269,7 +1405,7 @@ output_schema:
 ~~~markdown
 # skill: order_confirmation
 
-**version**: 3.4.0
+**version**: 3.4.2
 **type**: AtomicSkill
 
 ## description
@@ -1320,7 +1456,6 @@ content:
 ### step: calculate_total
 
 **type**: template
-**varName**: total_amount
 
 ```template
 {{quantity * unit_price}}
@@ -1329,7 +1464,6 @@ content:
 ### step: prepare_summary
 
 **type**: template
-**varName**: summary
 
 ```template
 订单摘要：
@@ -1337,7 +1471,7 @@ content:
 - 商品：{{product_name}}
 - 数量：{{quantity}}
 - 单价：¥{{unit_price}}
-- 总金额：¥{{total_amount}}
+- 总金额：¥{{calculate_total.value}}
 ```
 
 ### step: user_confirmation
@@ -1346,7 +1480,7 @@ content:
 
 ```yaml
 message: |
-  {{summary}}
+  {{prepare_summary.value}}
 
   请确认以上订单信息是否正确。
 input_schema:
@@ -1363,26 +1497,24 @@ input_schema:
 ### step: process_order
 
 **type**: template
-**varName**: order_result
 
 ```yaml
 when:
-  expr: "{{confirm}} == true"
+  expr: "{{user_confirmation.confirm}} == true"
 ```
 
 ```template
-订单 {{order_id}} 已确认，总金额 ¥{{total_amount}}。
-用户备注：{{notes}}
+订单 {{order_id}} 已确认，总金额 ¥{{calculate_total.value}}。
+用户备注：{{user_confirmation.notes}}
 ```
 
 ### step: cancel_order
 
 **type**: template
-**varName**: cancel_result
 
 ```yaml
 when:
-  expr: "{{confirm}} == false"
+  expr: "{{user_confirmation.confirm}} == false"
 ```
 
 ```template
@@ -1392,14 +1524,13 @@ when:
 ### step: final_output
 
 **type**: template
-**varName**: content
 
 ```template
 {
   "order_id": "{{order_id}}",
-  "total_amount": {{total_amount}},
-  "confirmed": {{confirm}},
-  "user_notes": "{{notes}}"
+  "total_amount": {{calculate_total.value}},
+  "confirmed": {{user_confirmation.confirm}},
+  "user_notes": "{{user_confirmation.notes}}"
 }
 ```
 ~~~
@@ -1410,7 +1541,7 @@ when:
 ~~~markdown
 # skill: sales_report
 
-**version**: 3.4.0
+**version**: 3.4.2
 **type**: AtomicSkill
 
 ## description
@@ -1485,12 +1616,11 @@ output_schema:
 ### step: format_report
 
 **type**: template
-**varName**: report
 
 ```template
 {{region}} 地区 {{period}} 销售报表：
 
-{{#for data}}
+{{#for fetch_sales_data.data}}
 区域：{{region}}，商品：{{product}}，销售量：{{amount}}
 {{/for}}
 ```
@@ -1501,7 +1631,7 @@ output_schema:
 ~~~markdown
 # skill: export_report
 
-**version**: 3.4.0
+**version**: 3.4.2
 **type**: AtomicSkill
 
 ## description
@@ -1571,11 +1701,10 @@ output_schema:
 ### step: format_response
 
 **type**: template
-**varName**: response
 
 ```template
 文件已生成：
-{{#for files}}
+{{#for generate_file.files}}
 - 文件名：{{file_name}}
 - 下载链接：{{file_url}}
 - 大小：{{file_size}} 字节
