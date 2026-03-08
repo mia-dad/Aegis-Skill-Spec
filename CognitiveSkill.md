@@ -61,19 +61,19 @@ ExecutionPlan（执行计划）
 
 ### 1.4 文件结构
 
-| 章节 | 必需 | 说明 |
-|------|------|------|
-| `# skill: <id>` | 是 | 技能唯一标识符，建议以 `cognitive_` 前缀 |
-| `**version**` | 否 | 技能版本号，默认 `1.0.0` |
-| `**ignore**` | 否 | 技能级异常处理，默认 `false` |
-| `**timeout**` | 否 | 执行超时时间（毫秒），默认由平台配置 |
-| `**type**: CognitiveSkill` | 是 | 技能类型，必须显式声明 |
-| `**mode**` | 是 | Agent 运行模式（Direct/CoT/ReAct/Decompose/Retrieve/Compare/Generate） |
-| `## description` | 否 | 技能描述 |
-| `## capabilityTags` | 否 | 能力关键词列表 |
-| `## input_schema` | 是 | 输入参数结构定义 |
-| `## internal_flow` | 是 | 内部执行流程定义 |
-| `## output_schema` | 是 | 输出参数结构定义 |
+| 章节                         | 必需  | 说明                                                               |
+| -------------------------- | --- | ---------------------------------------------------------------- |
+| `# skill: <id>`            | 是   | 技能唯一标识符，建议以 `cognitive_` 前缀                                      |
+| `**version**`              | 否   | 技能版本号，默认 `1.0.0`                                                 |
+| `**ignore**`               | 否   | 技能级异常处理，默认 `false`                                               |
+| `**timeout**`              | 否   | 执行超时时间（毫秒），默认由平台配置                                               |
+| `**type**: CognitiveSkill` | 是   | 技能类型，必须显式声明                                                      |
+| `**mode**`                 | 是   | Agent 运行模式（Direct/CoT/ReAct/Decompose/Retrieve/Compare/Generate） |
+| `## description`           | 是   | 技能描述                                                             |
+| `## capabilityTags`        | 否   | 能力关键词列表                                                          |
+| `## input_schema`          | 是   | 输入参数结构定义                                                         |
+| `## internal_flow`         | 是   | 内部执行流程定义                                                         |
+| `## output_schema`         | 是   | 输出参数结构定义                                                         |
 
 ### 1.5 文件骨架
 
@@ -841,14 +841,14 @@ ExecutionPlan
 
 **字段说明**：
 
-| 字段 | 必需 | 类型 | 说明 |
-|------|------|------|------|
-| `type` | 是 | string | 固定为 `loop` |
-| `max_iterations` | 是 | number | 最大迭代次数，超过则强制退出 |
-| `exit_condition` | 是 | string | 退出条件表达式，为 true 时退出循环 |
-| `do` | 是 | array | 每次迭代执行的子节点列表 |
-| `final` | 是 | string | 循环结束后提取最终结果的表达式 |
-| `as` | 是 | string | 最终结果存入的变量名 |
+| 字段               | 必需  | 类型     | 说明                   |
+| ---------------- | --- | ------ | -------------------- |
+| `type`           | 是   | string | 固定为 `loop`           |
+| `max_iterations` | 是   | number | 最大迭代次数，超过则强制退出       |
+| `exit_condition` | 是   | string | 退出条件表达式，为 true 时退出循环 |
+| `do`             | 是   | array  | 每次迭代执行的子节点列表         |
+| `final`          | 是   | string | 循环结束后提取最终结果的表达式      |
+| `as`             | 是   | string | 最终结果存入的变量名           |
 
 #### 3.6.3 作用域规则
 
@@ -1094,7 +1094,9 @@ CognitiveSkill 使用**全局单作用域**：
 | `select` 节点输出        | 通过 `output` 字段指定的变量名进入 context                   |
 | `assign` 节点输出        | 通过 `to` 字段指定的变量名进入 context                       |
 | `merge` 节点输出         | 通过 `as` 字段指定的变量名进入 context                       |
-| foreach 节点输出         | 通过 `collect` 字段指定的变量名进入 context                  |
+| `foreach` 节点输出        | 通过 `collect` 字段指定的变量名进入 context（收集结果）        |
+| `loop` 节点输出          | 通过 `as` 字段指定的变量名进入 context（最终结果）            |
+|                      |                                                  |
 
 ### 5.3 变量引用方式
 
